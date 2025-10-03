@@ -1,0 +1,25 @@
+.aiseo-modal .components-modal__content {
+    padding: 20px;
+}
+
+.aiseo-modal .components-base-control {
+    margin-bottom: 15px;
+}
+
+.aiseo-modal .components-button.is-primary {
+    width: 100%;
+    margin-top: 10px;
+}
+
+.aiseo-modal .components-select-control {
+    margin-bottom: 20px;
+}
+
+.aiseo-modal .components-textarea-control__input {
+    min-height: 100px;
+}
+
+/* Support Korean font */
+body .editor-styles-wrapper, .block-editor-block-list__block {
+    font-family: 'Noto Serif KR', sans-serif;
+}

@@ -1,0 +1,47 @@
+# WordPress
+wp-config.php
+wp-content/uploads/
+wp-content/cache/
+wp-content/backup-db/
+wp-content/upgrade/
+wp-content/backup/
+
+# Plugin specific
+*.log
+.DS_Store
+Thumbs.db
+
+# Development
+node_modules/
+.env
+.env.local
+.vscode/settings.json
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Package managers
+package-lock.json
+yarn.lock
+composer.lock
+
+# Build files
+/build/
+/dist/
