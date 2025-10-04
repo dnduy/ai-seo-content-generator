@@ -1,9 +1,9 @@
 (function(wp) {
     const { registerPlugin } = wp.plugins;
     const { PluginPostStatusInfo } = wp.editPost;
-    const { Button, Modal, TextControl, TextareaControl, SelectControl } = wp.components;
+    const { Button, Modal, TextControl, TextareaControl, SelectControl, CheckboxControl } = wp.components;
     const { useState } = wp.element;
-    const { useDispatch } = wp.data;
+    const { useDispatch, useSelect } = wp.data;
     const { __ } = wp.i18n;
 
     // Debug: Log to confirm script is loaded
@@ -17,6 +17,8 @@
     registerPlugin('aiseo-content-generator', {
         render: () => {
             const { insertBlocks } = useDispatch('core/block-editor');
+            const { editPost } = useDispatch('core/editor');
+            const currentPostTitle = useSelect(select => select('core/editor').getEditedPostAttribute('title'), []);
             const [isOpen, setOpen] = useState(false);
             const [keywords, setKeywords] = useState('');
             const [prompt, setPrompt] = useState('');
@@ -25,6 +27,7 @@
             const [language, setLanguage] = useState('vi');
             const [api, setApi] = useState('gemini-1.5');
             const [isLoading, setLoading] = useState(false);
+            const [autoFillTitle, setAutoFillTitle] = useState(true);
 
             // Debug: Log when rendering plugin
             console.log('AI SEO Content Generator: Rendering plugin');
@@ -168,16 +171,29 @@
                         // Insert blocks
                         if (blocks.length > 0) {
                             insertBlocks(blocks);
+                            
+                            // Auto-fill post title if enabled, empty and meta_title is available
+                            if (response.meta_title && autoFillTitle && (!currentPostTitle || currentPostTitle.trim() === '')) {
+                                editPost({ title: response.meta_title });
+                                console.log('AI SEO Content Generator: Auto-filled post title:', response.meta_title);
+                            }
+                            
                             setOpen(false);
                             
                             // Show success message
                             const successMessage = __('Content generated successfully!', 'ai-seo-content-generator');
+                            let notificationMessage = successMessage;
+                            
+                            if (response.meta_title && autoFillTitle && (!currentPostTitle || currentPostTitle.trim() === '')) {
+                                notificationMessage += ' ' + __('Post title has been automatically set.', 'ai-seo-content-generator');
+                            }
+                            
                             if (response.meta_title && response.meta_description) {
                                 const seoMessage = __('SEO guidance has been added at the end of the article. Please follow it to optimize your post.', 'ai-seo-content-generator');
-                                alert(successMessage + ' ' + seoMessage);
-                            } else {
-                                alert(successMessage);
+                                notificationMessage += ' ' + seoMessage;
                             }
+                            
+                            alert(notificationMessage);
                         } else {
                             alert(__('Error: No valid content blocks generated.', 'ai-seo-content-generator'));
                         }
@@ -296,6 +312,15 @@
                                     { label: 'DeepSeek (V3)', value: 'deepseek' }
                                 ],
                                 onChange: setApi
+                            }
+                        ),
+                        wp.element.createElement(
+                            CheckboxControl,
+                            {
+                                label: __('Auto-fill post title', 'ai-seo-content-generator'),
+                                help: __('Automatically set the generated SEO title as the post title (only if current title is empty).', 'ai-seo-content-generator'),
+                                checked: autoFillTitle,
+                                onChange: setAutoFillTitle
                             }
                         ),
                         wp.element.createElement(
