@@ -56,8 +56,10 @@
                     path: 'aiseo/v1/generate-content',
                     method: 'POST',
                     headers: {
-                        'X-WP-Nonce': aiseoSettings.nonce
+                        'X-WP-Nonce': aiseoSettings.nonce,
+                        'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // Include cookies for authentication
                     data: {
                         prompt: prompt,
                         keywords: keywords,
@@ -205,9 +207,16 @@
                 }).catch((error) => {
                     console.error('AI SEO Content Generator: API error', error);
                     let errorMessage = error.message;
+                    
+                    // Handle specific error codes
                     if (error.code === 'quota_exceeded') {
                         errorMessage = __('Quota exceeded. Please check your API plan at https://ai.google.dev/ or https://openrouter.ai/.', 'ai-seo-content-generator');
+                    } else if (error.code === 'invalid_nonce' || error.message?.includes('Nonce')) {
+                        errorMessage = __('Session expired. Please refresh the page and try again.', 'ai-seo-content-generator');
+                    } else if (error.code === 'rest_forbidden' || error.message?.includes('cookie')) {
+                        errorMessage = __('Authentication failed. Please ensure you are logged in to WordPress.', 'ai-seo-content-generator');
                     }
+                    
                     alert(__('Error: ', 'ai-seo-content-generator') + errorMessage);
                     setLoading(false);
                 });

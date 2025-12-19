@@ -176,7 +176,18 @@ function aiseo_register_rest_route() {
         'methods' => 'POST',
         'callback' => 'aiseo_handle_ai_request',
         'permission_callback' => function() {
-            return current_user_can('edit_posts');
+            // Check if user is logged in and can edit posts
+            if (!is_user_logged_in()) {
+                error_log('AISEO: User not logged in');
+                return false;
+            }
+            
+            if (!current_user_can('edit_posts')) {
+                error_log('AISEO: User does not have permission to edit posts');
+                return false;
+            }
+            
+            return true;
         }
     ));
 }
@@ -186,16 +197,34 @@ add_action('rest_api_init', 'aiseo_register_rest_route');
 function aiseo_handle_ai_request(WP_REST_Request $request) {
     error_log('AISEO: Handling REST request for /aiseo/v1/generate-content');
 
-    $params = $request->get_params();
+    // Verify nonce from X-WP-Nonce header
     $nonce = $request->get_header('X-WP-Nonce');
-
-    if (!wp_verify_nonce($nonce, 'wp_rest')) {
-        error_log('AISEO: Nonce verification failed');
+    
+    if (empty($nonce)) {
+        error_log('AISEO: No nonce provided in request headers');
         return new WP_REST_Response(
-            array('code' => 'invalid_nonce', 'message' => __('Nonce verification failed', 'ai-seo-content-generator')),
+            array(
+                'success' => false,
+                'code' => 'invalid_nonce',
+                'message' => __('Missing nonce for security verification', 'ai-seo-content-generator')
+            ),
             403
         );
     }
+
+    if (!wp_verify_nonce($nonce, 'wp_rest')) {
+        error_log('AISEO: Nonce verification failed. Nonce: ' . $nonce);
+        return new WP_REST_Response(
+            array(
+                'success' => false,
+                'code' => 'invalid_nonce',
+                'message' => __('Nonce verification failed. Please refresh the page.', 'ai-seo-content-generator')
+            ),
+            403
+        );
+    }
+
+    $params = $request->get_params();
 
     $prompt = isset($params['prompt']) ? sanitize_text_field($params['prompt']) : '';
     $keywords = isset($params['keywords']) ? sanitize_text_field($params['keywords']) : '';
