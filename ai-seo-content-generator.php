@@ -172,30 +172,66 @@ add_action('enqueue_block_editor_assets', 'aiseo_enqueue_block_editor_assets');
 
 // Register REST API endpoint
 function aiseo_register_rest_route() {
+    // Test endpoint to verify authentication setup
+    register_rest_route('aiseo/v1', '/test-auth', array(
+        'methods' => 'GET',
+        'callback' => 'aiseo_test_auth_endpoint',
+        'permission_callback' => '__return_true'
+    ));
+
+    // Main content generation endpoint
     register_rest_route('aiseo/v1', '/generate-content', array(
         'methods' => 'POST',
         'callback' => 'aiseo_handle_ai_request',
-        'permission_callback' => function() {
-            // Check if user is logged in and can edit posts
-            if (!is_user_logged_in()) {
-                error_log('AISEO: User not logged in');
-                return false;
-            }
-            
-            if (!current_user_can('edit_posts')) {
-                error_log('AISEO: User does not have permission to edit posts');
-                return false;
-            }
-            
-            return true;
-        }
+        'permission_callback' => '__return_true'  // Allow request to proceed; validation done in callback
     ));
+}
+
+// Test authentication endpoint for debugging
+function aiseo_test_auth_endpoint(WP_REST_Request $request) {
+    $response = array(
+        'user_logged_in' => is_user_logged_in(),
+        'current_user' => get_current_user_id(),
+        'nonce_header' => $request->get_header('X-WP-Nonce'),
+        'user_capabilities' => array(
+            'edit_posts' => current_user_can('edit_posts'),
+            'manage_options' => current_user_can('manage_options')
+        )
+    );
+    
+    return new WP_REST_Response($response, 200);
 }
 add_action('rest_api_init', 'aiseo_register_rest_route');
 
 // Handle AI request
 function aiseo_handle_ai_request(WP_REST_Request $request) {
     error_log('AISEO: Handling REST request for /aiseo/v1/generate-content');
+
+    // First, verify user is logged in
+    if (!is_user_logged_in()) {
+        error_log('AISEO: User not logged in');
+        return new WP_REST_Response(
+            array(
+                'success' => false,
+                'code' => 'not_authenticated',
+                'message' => __('You must be logged in to use this feature', 'ai-seo-content-generator')
+            ),
+            401
+        );
+    }
+
+    // Check user capability
+    if (!current_user_can('edit_posts')) {
+        error_log('AISEO: User does not have edit_posts capability');
+        return new WP_REST_Response(
+            array(
+                'success' => false,
+                'code' => 'forbidden',
+                'message' => __('You do not have permission to generate content', 'ai-seo-content-generator')
+            ),
+            403
+        );
+    }
 
     // Verify nonce from X-WP-Nonce header
     $nonce = $request->get_header('X-WP-Nonce');
@@ -213,12 +249,12 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
     }
 
     if (!wp_verify_nonce($nonce, 'wp_rest')) {
-        error_log('AISEO: Nonce verification failed. Nonce: ' . $nonce);
+        error_log('AISEO: Nonce verification failed. Nonce: ' . substr($nonce, 0, 10) . '...');
         return new WP_REST_Response(
             array(
                 'success' => false,
                 'code' => 'invalid_nonce',
-                'message' => __('Nonce verification failed. Please refresh the page.', 'ai-seo-content-generator')
+                'message' => __('Security verification failed. Please refresh the page and try again.', 'ai-seo-content-generator')
             ),
             403
         );

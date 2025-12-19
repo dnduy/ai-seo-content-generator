@@ -8,6 +8,23 @@
 
     // Debug: Log to confirm script is loaded
     console.log('AI SEO Content Generator: block-editor.js loaded');
+    console.log('AI SEO Content Generator: aiseoSettings available:', typeof aiseoSettings !== 'undefined' ? aiseoSettings : 'NOT FOUND');
+
+    // Test authentication endpoint for debugging
+    if (typeof aiseoSettings !== 'undefined' && aiseoSettings.nonce) {
+        console.log('Testing authentication endpoint...');
+        fetch(aiseoSettings.rest_url.replace('/generate-content', '/test-auth'), {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'X-WP-Nonce': aiseoSettings.nonce
+            }
+        }).then(res => res.json()).then(data => {
+            console.log('Authentication test result:', data);
+        }).catch(err => {
+            console.error('Authentication test error:', err);
+        });
+    }
 
     // Rate limiting
     let lastRequestTime = 0;
@@ -51,6 +68,16 @@
                 console.log('AI SEO Content Generator: Sending AI request with prompt:', prompt);
                 lastRequestTime = Date.now();
                 setLoading(true);
+
+                // Verify nonce is available
+                if (!aiseoSettings || !aiseoSettings.nonce) {
+                    console.error('AI SEO Content Generator: nonce not available in aiseoSettings');
+                    alert(__('Error: Security settings not loaded. Please refresh the page and try again.', 'ai-seo-content-generator'));
+                    setLoading(false);
+                    return;
+                }
+
+                console.log('AI SEO Content Generator: Using nonce for request');
 
                 wp.apiFetch({
                     path: 'aiseo/v1/generate-content',
@@ -206,14 +233,20 @@
                     setLoading(false);
                 }).catch((error) => {
                     console.error('AI SEO Content Generator: API error', error);
-                    let errorMessage = error.message;
+                    console.log('Error details:', error);
                     
-                    // Handle specific error codes
+                    let errorMessage = error.message || __('An unknown error occurred', 'ai-seo-content-generator');
+                    
+                    // Handle specific error codes from REST API response
                     if (error.code === 'quota_exceeded') {
                         errorMessage = __('Quota exceeded. Please check your API plan at https://ai.google.dev/ or https://openrouter.ai/.', 'ai-seo-content-generator');
-                    } else if (error.code === 'invalid_nonce' || error.message?.includes('Nonce')) {
+                    } else if (error.code === 'not_authenticated' || error.code === 'rest_not_authenticated') {
+                        errorMessage = __('You must be logged in to WordPress to use this feature. Please log in and try again.', 'ai-seo-content-generator');
+                    } else if (error.code === 'forbidden' || error.code === 'rest_forbidden') {
+                        errorMessage = __('You do not have permission to generate content. Please contact your site administrator.', 'ai-seo-content-generator');
+                    } else if (error.code === 'invalid_nonce' || error.message?.includes('Nonce') || error.message?.includes('verification')) {
                         errorMessage = __('Session expired. Please refresh the page and try again.', 'ai-seo-content-generator');
-                    } else if (error.code === 'rest_forbidden' || error.message?.includes('cookie')) {
+                    } else if (error.message?.includes('cookie') || error.message?.includes('authentication')) {
                         errorMessage = __('Authentication failed. Please ensure you are logged in to WordPress.', 'ai-seo-content-generator');
                     }
                     
