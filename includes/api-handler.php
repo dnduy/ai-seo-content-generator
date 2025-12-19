@@ -54,7 +54,14 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
     $response_body = wp_remote_retrieve_body($response);
 
     error_log('AISEO: Gemini API response code: ' . $response_code);
-    error_log('AISEO: Gemini API response body: ' . $response_body);
+    error_log('AISEO: Gemini API response body: ' . substr($response_body, 0, 500));
+
+    // Check for quota/rate limit errors by HTTP status code first
+    if ($response_code === 429 || $response_code === 503) {
+        $error_message = 'Rate limit exceeded. Gemini API quota exhausted.';
+        error_log('AISEO: Gemini API quota exceeded (HTTP ' . $response_code . ')');
+        return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again or check your API plan at https://ai.google.dev/gemini-api/docs/rate-limits', array('status' => 429));
+    }
 
     $data = json_decode($response_body, true);
 
@@ -65,9 +72,12 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
 
     if (isset($data['error'])) {
         $error_message = $data['error']['message'] ?? 'Unknown Gemini API error';
-        error_log('AISEO: Gemini API error: ' . $error_message);
-        if ($data['error']['code'] == 429) {
-            return new WP_Error('quota_exceeded', $error_message . '. Check your Gemini plan at https://ai.google.dev/gemini-api/docs/rate-limits', array('status' => 429));
+        $error_code = $data['error']['code'] ?? null;
+        error_log('AISEO: Gemini API error (' . $error_code . '): ' . $error_message);
+        
+        // Check for quota/rate limit in error response
+        if ($error_code == 429 || strpos(strtolower($error_message), 'quota') !== false || strpos(strtolower($error_message), 'rate limit') !== false) {
+            return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again.', array('status' => 429));
         }
         return new WP_Error('api_error', $error_message);
     }
@@ -133,7 +143,14 @@ function aiseo_call_deepseek_api($prompt) {
         $response_body = wp_remote_retrieve_body($response);
 
         error_log('AISEO: DeepSeek API response code: ' . $response_code);
-        error_log('AISEO: DeepSeek API response body: ' . $response_body);
+        error_log('AISEO: DeepSeek API response body: ' . substr($response_body, 0, 500));
+
+        // Check for quota/rate limit errors by HTTP status code first
+        if ($response_code === 429 || $response_code === 503) {
+            $error_message = 'Rate limit exceeded. DeepSeek API quota exhausted.';
+            error_log('AISEO: DeepSeek API quota exceeded (HTTP ' . $response_code . ')');
+            return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again or check your OpenRouter plan at https://openrouter.ai/', array('status' => 429));
+        }
 
         $data = json_decode($response_body, true);
 
@@ -144,9 +161,12 @@ function aiseo_call_deepseek_api($prompt) {
 
         if (isset($data['error'])) {
             $error_message = $data['error']['message'] ?? 'Unknown DeepSeek API error';
-            error_log('AISEO: DeepSeek API error: ' . $error_message);
-            if ($data['error']['code'] == 'rate_limit_exceeded') {
-                return new WP_Error('quota_exceeded', $error_message . '. Check your DeepSeek plan at https://openrouter.ai/', array('status' => 429));
+            $error_code = $data['error']['code'] ?? null;
+            error_log('AISEO: DeepSeek API error (' . $error_code . '): ' . $error_message);
+            
+            // Check for quota/rate limit in error response
+            if ($error_code == 'rate_limit_exceeded' || strpos(strtolower($error_message), 'quota') !== false || strpos(strtolower($error_message), 'rate limit') !== false) {
+                return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again.', array('status' => 429));
             }
             return new WP_Error('api_error', $error_message);
         }
@@ -179,6 +199,7 @@ function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-
     }
     
     $last_error = null;
+    $quota_errors = array(); // Track quota errors separately
     
     foreach ($apis as $api) {
         error_log('AISEO: Trying API: ' . $api);
@@ -188,6 +209,35 @@ function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-
             aiseo_call_gemini_api($prompt, $api);
         
         if (!is_wp_error($result)) {
+            error_log('AISEO: Success with API: ' . $api);
+            return $result;
+        }
+        
+        $last_error = $result;
+        $error_code = $result->get_error_code();
+        
+        // If this is a quota/rate limit error, skip this API and try next
+        if ($error_code === 'quota_exceeded') {
+            error_log('AISEO: API ' . $api . ' has quota exceeded, trying next API');
+            $quota_errors[] = array('api' => $api, 'message' => $result->get_error_message());
+            continue; // Try next API
+        }
+        
+        // For other errors, also try next API if available
+        error_log('AISEO: Failed with API ' . $api . ': ' . $result->get_error_message());
+    }
+    
+    // If all APIs failed due to quota, return specific error message
+    if (!empty($quota_errors)) {
+        $quota_message = 'All available APIs have reached their rate limits. ';
+        $quota_message .= 'Please wait a few minutes before trying again. ';
+        $quota_message .= 'Consider upgrading your API plans at https://ai.google.dev/ or https://openrouter.ai/';
+        error_log('AISEO: All APIs failed with quota exceeded');
+        return new WP_Error('all_quota_exceeded', $quota_message);
+    }
+    
+    error_log('AISEO: All APIs failed');
+    return $last_error ?: new WP_Error('all_apis_failed', 'All APIs failed to generate content');
             error_log('AISEO: Success with API: ' . $api);
             return $result;
         }

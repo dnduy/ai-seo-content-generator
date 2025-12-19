@@ -238,14 +238,16 @@
                     let errorMessage = error.message || __('An unknown error occurred', 'ai-seo-content-generator');
                     
                     // Handle specific error codes from REST API response
-                    if (error.code === 'quota_exceeded') {
-                        errorMessage = __('Quota exceeded. Please check your API plan at https://ai.google.dev/ or https://openrouter.ai/.', 'ai-seo-content-generator');
+                    if (error.code === 'quota_exceeded' || error.code === 'all_quota_exceeded') {
+                        errorMessage = __('API quota exceeded. All available APIs have reached their rate limits. Please wait a few minutes before trying again, or upgrade your API plans.', 'ai-seo-content-generator');
                     } else if (error.code === 'not_authenticated' || error.code === 'rest_not_authenticated') {
                         errorMessage = __('You must be logged in to WordPress to use this feature. Please log in and try again.', 'ai-seo-content-generator');
                     } else if (error.code === 'forbidden' || error.code === 'rest_forbidden') {
                         errorMessage = __('You do not have permission to generate content. Please contact your site administrator.', 'ai-seo-content-generator');
                     } else if (error.code === 'invalid_nonce' || error.message?.includes('Nonce') || error.message?.includes('verification')) {
                         errorMessage = __('Session expired. Please refresh the page and try again.', 'ai-seo-content-generator');
+                    } else if (error.code === 'no_api_key') {
+                        errorMessage = __('API keys are not configured. Please contact your site administrator to set up the AI SEO Content Generator.', 'ai-seo-content-generator');
                     } else if (error.message?.includes('cookie') || error.message?.includes('authentication')) {
                         errorMessage = __('Authentication failed. Please ensure you are logged in to WordPress.', 'ai-seo-content-generator');
                     }
