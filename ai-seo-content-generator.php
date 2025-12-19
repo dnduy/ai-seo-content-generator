@@ -129,7 +129,8 @@ function aiseo_init() {
     if (function_exists('aiseo_create_history_table')) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'aiseo_history';
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $sql = $wpdb->prepare("SHOW TABLES LIKE %s", $table_name);
+        if ($wpdb->get_var($sql) != $table_name) {
             aiseo_create_history_table();
         }
     }
@@ -142,11 +143,14 @@ function aiseo_enqueue_block_editor_assets() {
         return;
     }
 
+    $block_editor_file = AISEO_PLUGIN_DIR . 'assets/js/block-editor.js';
+    $style_file = AISEO_PLUGIN_DIR . 'assets/css/style.css';
+    
     wp_enqueue_script(
         'aiseo-block-editor',
         AISEO_PLUGIN_URL . 'assets/js/block-editor.js',
         array('wp-blocks', 'wp-element', 'wp-editor', 'wp-components', 'wp-i18n', 'wp-api-fetch', 'wp-data'),
-        filemtime(AISEO_PLUGIN_DIR . 'assets/js/block-editor.js'),
+        file_exists($block_editor_file) ? filemtime($block_editor_file) : '1.0',
         true
     );
 
@@ -154,7 +158,7 @@ function aiseo_enqueue_block_editor_assets() {
         'aiseo-style',
         AISEO_PLUGIN_URL . 'assets/css/style.css',
         array(),
-        filemtime(AISEO_PLUGIN_DIR . 'assets/css/style.css')
+        file_exists($style_file) ? filemtime($style_file) : '1.0'
     );
 
     wp_localize_script('aiseo-block-editor', 'aiseoSettings', array(
@@ -345,10 +349,20 @@ function aiseo_register_settings() {
 add_action('admin_menu', 'aiseo_register_settings');
 
 function aiseo_settings_page() {
+    // Check user permissions
+    if (!current_user_can('manage_options')) {
+        wp_die('Unauthorized');
+    }
+    
     // Handle form submission
     if (isset($_POST['submit'])) {
-        $gemini_key = sanitize_text_field($_POST['aiseo_gemini_api_key']);
-        $deepseek_key = sanitize_text_field($_POST['aiseo_deepseek_api_key']);
+        // Verify nonce
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'aiseo_settings_nonce')) {
+            wp_die('Nonce verification failed');
+        }
+        
+        $gemini_key = isset($_POST['aiseo_gemini_api_key']) ? sanitize_text_field($_POST['aiseo_gemini_api_key']) : '';
+        $deepseek_key = isset($_POST['aiseo_deepseek_api_key']) ? sanitize_text_field($_POST['aiseo_deepseek_api_key']) : '';
         
         aiseo_save_api_key('aiseo_gemini_api_key', $gemini_key);
         aiseo_save_api_key('aiseo_deepseek_api_key', $deepseek_key);
@@ -358,6 +372,11 @@ function aiseo_settings_page() {
     
     // Handle clear cache
     if (isset($_POST['clear_cache'])) {
+        // Verify nonce
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'aiseo_settings_nonce')) {
+            wp_die('Nonce verification failed');
+        }
+        
         aiseo_clear_cache();
         echo '<div class="notice notice-success"><p>Cache cleared successfully!</p></div>';
     }
@@ -398,6 +417,11 @@ function aiseo_settings_page() {
 }
 
 function aiseo_history_page() {
+    // Check user permissions
+    if (!current_user_can('edit_posts')) {
+        wp_die('Unauthorized');
+    }
+    
     $current_user_id = get_current_user_id();
     $page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
     $per_page = 10;

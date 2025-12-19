@@ -100,6 +100,12 @@ function aiseo_get_user_history_count($user_id) {
 function aiseo_cleanup_old_history($days = 30) {
     global $wpdb;
     
+    // Validate days parameter
+    $days = absint($days);
+    if ($days < 1) {
+        $days = 30;
+    }
+    
     $table_name = $wpdb->prefix . 'aiseo_history';
     
     $result = $wpdb->query($wpdb->prepare(
