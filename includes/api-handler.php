@@ -4,14 +4,21 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function aiseo_call_gemini_api($prompt, $model = 'gemini-1.5-flash') {
+function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
     $api_key = aiseo_get_api_key('aiseo_gemini_api_key');
     if (empty($api_key)) {
         error_log('AISEO: Gemini API key is not configured.');
         return new WP_Error('no_api_key', 'Gemini API key is not configured.');
     }
 
-    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/' . ($model === 'gemini-2.0' ? 'gemini-2.0-flash' : 'gemini-1.5-flash') . ':generateContent';
+    // Map model names to Google Gemini API model IDs (Dec 2025)
+    $model_map = array(
+        'gemini-3-flash' => 'gemini-3-flash',
+        'gemini-2.0' => 'gemini-2.0-flash',
+        'gemini-1.5' => 'gemini-1.5-flash'
+    );
+    $gemini_model = isset($model_map[$model]) ? $model_map[$model] : 'gemini-3-flash';
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $gemini_model . ':generateContent';
 
     $body = array(
         'contents' => array(
@@ -23,7 +30,7 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-1.5-flash') {
         ),
         'generationConfig' => array(
             'temperature' => 0.7,
-            'maxOutputTokens' => 2048
+            'maxOutputTokens' => 4096
         )
     );
 
@@ -83,13 +90,15 @@ function aiseo_call_deepseek_api($prompt) {
 
     $api_url = 'https://openrouter.ai/api/v1/chat/completions';
 
+    // Use DeepSeek R1 model via OpenRouter (latest version as of Dec 2025)
+    // Note: DeepSeek R1 includes advanced reasoning capabilities
     $body = array(
-        'model' => 'deepseek/deepseek-chat:free',
+        'model' => 'deepseek/deepseek-r1',
         'messages' => array(
             array('role' => 'user', 'content' => $prompt)
         ),
         'temperature' => 0.7,
-        'max_tokens' => 2048
+        'max_tokens' => 4096
     );
 
     error_log('AISEO: Sending DeepSeek API request with prompt: ' . $prompt);
@@ -156,16 +165,17 @@ function aiseo_call_deepseek_api($prompt) {
 }
 
 // Multi-API fallback function
-function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-1.5') {
+function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-3-flash') {
     $apis = array();
     
-    // Set API priority based on preference
+    // Set API priority based on preference (Gemini 3 > Gemini 2.0 > DeepSeek R1)
     if ($preferred_api === 'deepseek') {
-        $apis = array('deepseek', 'gemini-1.5', 'gemini-2.0');
+        $apis = array('deepseek', 'gemini-3-flash', 'gemini-2.0');
     } elseif ($preferred_api === 'gemini-2.0') {
-        $apis = array('gemini-2.0', 'gemini-1.5', 'deepseek');
+        $apis = array('gemini-2.0', 'gemini-3-flash', 'deepseek');
     } else {
-        $apis = array('gemini-1.5', 'gemini-2.0', 'deepseek');
+        // Default: Gemini 3 Flash as primary (latest, fastest, most cost-effective as of Dec 2025)
+        $apis = array('gemini-3-flash', 'gemini-2.0', 'deepseek');
     }
     
     $last_error = null;
