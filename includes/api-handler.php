@@ -238,23 +238,5 @@ function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-
     
     error_log('AISEO: All APIs failed');
     return $last_error ?: new WP_Error('all_apis_failed', 'All APIs failed to generate content');
-            error_log('AISEO: Success with API: ' . $api);
-            return $result;
-        }
-        
-        $last_error = $result;
-        error_log('AISEO: Failed with API ' . $api . ': ' . $result->get_error_message());
-        
-        // Don't try other APIs if it's a quota/rate limit issue with the preferred one
-        if (in_array($result->get_error_code(), array('quota_exceeded', 'rate_limit_exceeded'))) {
-            if ($api === $preferred_api) {
-                error_log('AISEO: Quota exceeded for preferred API, trying alternatives');
-                continue;
-            }
-        }
-    }
-    
-    error_log('AISEO: All APIs failed');
-    return $last_error ?: new WP_Error('all_apis_failed', 'All APIs failed to generate content');
 }
 ?>
