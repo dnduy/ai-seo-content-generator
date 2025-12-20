@@ -207,8 +207,8 @@ function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-
     foreach ($apis as $api) {
         error_log('AISEO: Trying API: ' . $api);
         
-        $result = ($api === 'deepseek') ? 
-            aiseo_call_deepseek_api($prompt) : 
+        $result = ($api === 'deepseek') ?
+            aiseo_call_deepseek_api($prompt) :
             aiseo_call_gemini_api($prompt, $api);
         
         if (!is_wp_error($result)) {
