@@ -351,8 +351,10 @@
                                 help: __('Select the AI model to generate content.', 'ai-seo-content-generator'),
                                 value: api,
                                 options: [
-                                    { label: 'Google Gemini (1.5 Flash)', value: 'gemini-1.5' },
+                                    { label: 'Google Gemini (Studio Licensed)', value: 'gemini-studio' },
+                                    { label: 'Google Gemini (3 Flash)', value: 'gemini-3-flash' },
                                     { label: 'Google Gemini (2.0 Flash)', value: 'gemini-2.0' },
+                                    { label: 'Google Gemini (1.5 Flash)', value: 'gemini-1.5' },
                                     { label: 'DeepSeek (V3)', value: 'deepseek' }
                                 ],
                                 onChange: setApi

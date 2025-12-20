@@ -13,6 +13,7 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
 
     // Map model names to Google Gemini API model IDs (Dec 2025)
     $model_map = array(
+        'gemini-studio' => 'gemini-3-flash', // Licensed Studio key can target latest flash
         'gemini-3-flash' => 'gemini-3-flash',
         'gemini-2.0' => 'gemini-2.0-flash',
         'gemini-1.5' => 'gemini-1.5-flash'
@@ -188,14 +189,16 @@ function aiseo_call_deepseek_api($prompt) {
 function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-3-flash') {
     $apis = array();
     
-    // Set API priority based on preference (Gemini 3 > Gemini 2.0 > DeepSeek R1)
+    // Set API priority based on preference (Gemini Studio/3 > Gemini 2.0 > DeepSeek R1)
     if ($preferred_api === 'deepseek') {
-        $apis = array('deepseek', 'gemini-3-flash', 'gemini-2.0');
+        $apis = array('deepseek', 'gemini-studio', 'gemini-3-flash', 'gemini-2.0');
     } elseif ($preferred_api === 'gemini-2.0') {
-        $apis = array('gemini-2.0', 'gemini-3-flash', 'deepseek');
+        $apis = array('gemini-2.0', 'gemini-studio', 'gemini-3-flash', 'deepseek');
+    } elseif ($preferred_api === 'gemini-studio' || $preferred_api === 'gemini-3-flash') {
+        $apis = array('gemini-studio', 'gemini-3-flash', 'gemini-2.0', 'deepseek');
     } else {
-        // Default: Gemini 3 Flash as primary (latest, fastest, most cost-effective as of Dec 2025)
-        $apis = array('gemini-3-flash', 'gemini-2.0', 'deepseek');
+        // Default: Gemini Studio/3 Flash as primary (latest, fastest, most cost-effective as of Dec 2025)
+        $apis = array('gemini-studio', 'gemini-3-flash', 'gemini-2.0', 'deepseek');
     }
     
     $last_error = null;
