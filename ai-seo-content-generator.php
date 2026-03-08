@@ -323,21 +323,48 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
     ];
     $language_full = isset($language_map[$language]) ? $language_map[$language] : 'Vietnamese';
 
-    // Construct SEO-optimized prompt
-    $full_prompt = "Generate an SEO-optimized article in {$language_full} language with the following details:\n";
-    $full_prompt .= "- Main keyword: {$keywords}\n";
-    $full_prompt .= "- Word count: approximately {$length} words\n";
-    $full_prompt .= "- Tone: {$tone}\n";
-    $full_prompt .= "- Format the content strictly in HTML using tags <h2> to <h6>, <p>, <ul>, <li>. Do NOT use <h1>, Markdown, or wrap in code blocks like ```html...```.\n";
-    $full_prompt .= "- Ensure the content is unique, original, and free from plagiarism.\n";
-    $full_prompt .= "- Include proper heading structure, bullet points, and natural keyword integration.\n";
-    $full_prompt .= "- User request: {$prompt}\n";
-    $full_prompt .= "- Provide an SEO title (60-70 characters), meta description (150-160 characters), synonym keyword, and secondary keyword at the beginning in plain text, formatted as:\n";
-    $full_prompt .= "  SEO Title: [Your title here]\n";
-    $full_prompt .= "  Meta Description: [Your description here]\n";
-    $full_prompt .= "  Synonym Keyword: [Your synonym here]\n";
-    $full_prompt .= "  Secondary Keyword: [Your secondary keyword here]\n";
-    $full_prompt .= "- Focus on professional content with factual accuracy for Gemini, or conversational and engaging content for DeepSeek.\n";
+    // Construct advanced SEO-optimized prompt following Google E-E-A-T guidelines
+    $full_prompt  = "You are an expert SEO content writer. Generate a high-quality, SEO-optimized article in {$language_full} with the following requirements:\n\n";
+
+    $full_prompt .= "=== CONTENT REQUIREMENTS ===\n";
+    $full_prompt .= "- Main keyword: \"{$keywords}\"\n";
+    $full_prompt .= "- Target word count: approximately {$length} words\n";
+    $full_prompt .= "- Writing tone: {$tone}\n";
+    $full_prompt .= "- User brief: {$prompt}\n\n";
+
+    $full_prompt .= "=== SEO WRITING RULES ===\n";
+    $full_prompt .= "- Follow Google E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness).\n";
+    $full_prompt .= "- Place the main keyword naturally in the first 100 words.\n";
+    $full_prompt .= "- Maintain keyword density of 1–2% (do NOT over-stuff).\n";
+    $full_prompt .= "- Use Latent Semantic Indexing (LSI) keywords and synonyms throughout.\n";
+    $full_prompt .= "- Write the opening paragraph as a concise, direct answer (featured snippet optimisation).\n";
+    $full_prompt .= "- Use transition words to improve readability and Flesch reading ease.\n";
+    $full_prompt .= "- Include at least one clear call-to-action (CTA) near the end.\n\n";
+
+    $full_prompt .= "=== HTML FORMAT ===\n";
+    $full_prompt .= "- Output the article body strictly in HTML: <h2>–<h6>, <p>, <ul>, <ol>, <li>, <strong>, <em>.\n";
+    $full_prompt .= "- Do NOT use <h1>. Do NOT use Markdown. Do NOT wrap in code blocks like ```html```.\n";
+    $full_prompt .= "- Use <strong> for the first occurrence of the main keyword in each section.\n";
+    $full_prompt .= "- Structure: intro paragraph → multiple H2 sections with H3 sub-sections → conclusion with CTA.\n\n";
+
+    $full_prompt .= "=== METADATA (output BEFORE the HTML content, one field per line) ===\n";
+    $full_prompt .= "Output exactly these lines first, then the HTML article body:\n";
+    $full_prompt .= "SEO Title: [60–70 characters, include main keyword near the start]\n";
+    $full_prompt .= "Meta Description: [150–160 characters, include main keyword and a compelling CTA]\n";
+    $full_prompt .= "OG Title: [50–60 characters, engaging social sharing title]\n";
+    $full_prompt .= "Synonym Keyword: [one LSI/semantic variant of the main keyword]\n";
+    $full_prompt .= "Secondary Keyword: [one related long-tail keyword]\n";
+    $full_prompt .= "Schema Type: [one of: Article, BlogPosting, HowTo, FAQPage, Product, NewsArticle]\n";
+    $full_prompt .= "Reading Time: [estimated reading time, e.g. 5 minutes]\n";
+    $full_prompt .= "FAQ 1 Q: [frequently asked question 1 about the topic]\n";
+    $full_prompt .= "FAQ 1 A: [concise answer, 1–2 sentences]\n";
+    $full_prompt .= "FAQ 2 Q: [frequently asked question 2]\n";
+    $full_prompt .= "FAQ 2 A: [concise answer]\n";
+    $full_prompt .= "FAQ 3 Q: [frequently asked question 3]\n";
+    $full_prompt .= "FAQ 3 A: [concise answer]\n";
+    $full_prompt .= "Internal Link 1: [suggested anchor text for an internal link]\n";
+    $full_prompt .= "Internal Link 2: [suggested anchor text for an internal link]\n";
+    $full_prompt .= "Internal Link 3: [suggested anchor text for an internal link]\n";
 
     // Call selected API with fallback
     $response = aiseo_generate_content_with_fallback($full_prompt, $api);
@@ -357,26 +384,47 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
         );
     }
 
-    // Extract meta title, description, synonym, and secondary keyword.
-    // Remove matched metadata lines from the response instead of relying on a fragile index,
-    // so the content is everything that was NOT a metadata line.
-    $meta_title = '';
+    // ── Parse all metadata fields from the AI response ──────────────────────
+    $meta_title       = '';
     $meta_description = '';
-    $synonym_keyword = '';
+    $og_title         = '';
+    $synonym_keyword  = '';
     $secondary_keyword = '';
+    $schema_type      = '';
+    $reading_time     = '';
+    $faq_1_q = ''; $faq_1_a = '';
+    $faq_2_q = ''; $faq_2_a = '';
+    $faq_3_q = ''; $faq_3_a = '';
+    $internal_link_1  = '';
+    $internal_link_2  = '';
+    $internal_link_3  = '';
+
     $meta_prefixes = array(
-        'SEO Title:'         => &$meta_title,
-        'Meta Description:'  => &$meta_description,
-        'Synonym Keyword:'   => &$synonym_keyword,
-        'Secondary Keyword:' => &$secondary_keyword,
+        'SEO Title:'       => &$meta_title,
+        'Meta Description:'=> &$meta_description,
+        'OG Title:'        => &$og_title,
+        'Synonym Keyword:' => &$synonym_keyword,
+        'Secondary Keyword:'=> &$secondary_keyword,
+        'Schema Type:'     => &$schema_type,
+        'Reading Time:'    => &$reading_time,
+        'FAQ 1 Q:'         => &$faq_1_q,
+        'FAQ 1 A:'         => &$faq_1_a,
+        'FAQ 2 Q:'         => &$faq_2_q,
+        'FAQ 2 A:'         => &$faq_2_a,
+        'FAQ 3 Q:'         => &$faq_3_q,
+        'FAQ 3 A:'         => &$faq_3_a,
+        'Internal Link 1:' => &$internal_link_1,
+        'Internal Link 2:' => &$internal_link_2,
+        'Internal Link 3:' => &$internal_link_3,
     );
+
     $content_lines = array();
     foreach (explode("\n", $response) as $line) {
         $matched = false;
         foreach ($meta_prefixes as $prefix => &$target) {
             if (strncmp(trim($line), $prefix, strlen($prefix)) === 0) {
-                $target = trim(substr(trim($line), strlen($prefix)));
-                $matched = true;
+                $target   = trim(substr(trim($line), strlen($prefix)));
+                $matched  = true;
                 break;
             }
         }
@@ -387,25 +435,115 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
     }
     $content = implode("\n", $content_lines);
 
-    // Add SEO guidance at the end of content
-    $seo_guidance = "<h3>Hướng dẫn SEO</h3>";
-    $seo_guidance .= "<p>Vui lòng nhập các thông tin sau vào plugin SEO (Yoast SEO hoặc Rank Math) để tối ưu bài viết:</p>";
-    $seo_guidance .= "<ul>";
-    $seo_guidance .= "<li><strong>Từ khóa chính:</strong> {$keywords}</li>";
-    $seo_guidance .= "<li><strong>Từ khóa đồng nghĩa:</strong> {$synonym_keyword}</li>";
-    $seo_guidance .= "<li><strong>Từ khóa phụ:</strong> {$secondary_keyword}</li>";
-    $seo_guidance .= "<li><strong>Mô tả (Meta Description):</strong> {$meta_description}</li>";
-    $seo_guidance .= "</ul>";
+    // ── Keyword density (server-side) ─────────────────────────────────────
+    $plain_content    = strtolower(strip_tags($content));
+    $kw_lower         = strtolower(trim($keywords));
+    $word_count_body  = str_word_count($plain_content);
+    $kw_occurrences   = $kw_lower !== '' ? substr_count($plain_content, $kw_lower) : 0;
+    $keyword_density  = ($word_count_body > 0 && $kw_occurrences > 0)
+        ? round(($kw_occurrences / $word_count_body) * 100, 2) : 0;
+
+    // Density status label
+    if ($keyword_density === 0.0) {
+        $density_status = 'Chưa có từ khóa';
+    } elseif ($keyword_density < 0.5) {
+        $density_status = 'Quá thấp (&lt; 0.5%)';
+    } elseif ($keyword_density <= 2.0) {
+        $density_status = 'Tốt (0.5 – 2%)';
+    } else {
+        $density_status = 'Quá cao (&gt; 2%) – có thể bị phạt';
+    }
+
+    // ── Build comprehensive SEO guidance block ────────────────────────────
+    $kw_esc   = esc_html($keywords);
+    $syn_esc  = esc_html($synonym_keyword);
+    $sec_esc  = esc_html($secondary_keyword);
+    $desc_esc = esc_html($meta_description);
+    $title_esc = esc_html($meta_title);
+    $og_esc   = esc_html($og_title);
+    $schema_esc = esc_html($schema_type ?: 'Article');
+    $rt_esc   = esc_html($reading_time ?: 'N/A');
+
+    $seo_guidance  = '<h2>📊 Hướng dẫn SEO đầy đủ</h2>';
+
+    // Section 1: Basic SEO fields
+    $seo_guidance .= '<h3>1. Thông tin SEO cơ bản (nhập vào Yoast SEO / Rank Math)</h3>';
+    $seo_guidance .= '<ul>';
+    $seo_guidance .= "<li><strong>SEO Title:</strong> {$title_esc} <em>(" . strlen($meta_title) . " ký tự — tối ưu 60-70)</em></li>";
+    $seo_guidance .= "<li><strong>Meta Description:</strong> {$desc_esc} <em>(" . strlen($meta_description) . " ký tự — tối ưu 150-160)</em></li>";
+    $seo_guidance .= "<li><strong>Open Graph Title (MXH):</strong> {$og_esc}</li>";
+    $seo_guidance .= "<li><strong>Từ khóa chính (Focus Keyword):</strong> {$kw_esc}</li>";
+    $seo_guidance .= "<li><strong>Từ khóa đồng nghĩa (Synonym):</strong> {$syn_esc}</li>";
+    $seo_guidance .= "<li><strong>Từ khóa phụ (Secondary):</strong> {$sec_esc}</li>";
+    $seo_guidance .= "<li><strong>Mật độ từ khóa:</strong> {$keyword_density}% ({$kw_occurrences} lần / {$word_count_body} từ) — {$density_status}</li>";
+    $seo_guidance .= "<li><strong>Thời gian đọc ước tính:</strong> {$rt_esc}</li>";
+    $seo_guidance .= '</ul>';
+
+    // Section 2: Schema.org
+    $seo_guidance .= '<h3>2. Schema.org Structured Data</h3>';
+    $seo_guidance .= '<ul>';
+    $seo_guidance .= "<li><strong>Loại Schema gợi ý:</strong> {$schema_esc}</li>";
+    $seo_guidance .= '<li>Triển khai JSON-LD trong <code>&lt;head&gt;</code> của trang để tăng khả năng hiển thị Rich Result trên Google.</li>';
+
+    // FAQ schema block
+    if ($faq_1_q) {
+        $seo_guidance .= '<li><strong>FAQ Schema (3 câu hỏi):</strong><ul>';
+        if ($faq_1_q) $seo_guidance .= '<li><strong>Q:</strong> ' . esc_html($faq_1_q) . ' <strong>A:</strong> ' . esc_html($faq_1_a) . '</li>';
+        if ($faq_2_q) $seo_guidance .= '<li><strong>Q:</strong> ' . esc_html($faq_2_q) . ' <strong>A:</strong> ' . esc_html($faq_2_a) . '</li>';
+        if ($faq_3_q) $seo_guidance .= '<li><strong>Q:</strong> ' . esc_html($faq_3_q) . ' <strong>A:</strong> ' . esc_html($faq_3_a) . '</li>';
+        $seo_guidance .= '</ul></li>';
+    }
+    $seo_guidance .= '</ul>';
+
+    // Section 3: Internal Links
+    if ($internal_link_1 || $internal_link_2 || $internal_link_3) {
+        $seo_guidance .= '<h3>3. Gợi ý Internal Links (anchor text)</h3>';
+        $seo_guidance .= '<ul>';
+        if ($internal_link_1) $seo_guidance .= '<li>' . esc_html($internal_link_1) . '</li>';
+        if ($internal_link_2) $seo_guidance .= '<li>' . esc_html($internal_link_2) . '</li>';
+        if ($internal_link_3) $seo_guidance .= '<li>' . esc_html($internal_link_3) . '</li>';
+        $seo_guidance .= '</ul>';
+    }
+
+    // Section 4: On-page SEO checklist
+    $seo_guidance .= '<h3>4. On-page SEO Checklist</h3>';
+    $seo_guidance .= '<ul>';
+    $seo_guidance .= '<li>☐ Từ khóa chính xuất hiện trong 100 từ đầu tiên</li>';
+    $seo_guidance .= '<li>☐ Từ khóa trong ít nhất một thẻ H2</li>';
+    $seo_guidance .= '<li>☐ URL slug ngắn, chứa từ khóa chính (không dấu)</li>';
+    $seo_guidance .= '<li>☐ Hình ảnh có alt text chứa từ khóa</li>';
+    $seo_guidance .= '<li>☐ Thêm 3–5 internal links tới bài liên quan</li>';
+    $seo_guidance .= '<li>☐ Thêm 1–2 external links tới nguồn uy tín (Wikipedia, Gov, Edu)</li>';
+    $seo_guidance .= '<li>☐ Nhập SEO Title và Meta Description vào Yoast/Rank Math</li>';
+    $seo_guidance .= '<li>☐ Nhập Open Graph Title cho mạng xã hội</li>';
+    $seo_guidance .= '<li>☐ Cài đặt Schema JSON-LD theo loại: ' . $schema_esc . '</li>';
+    $seo_guidance .= '<li>☐ Kiểm tra mật độ từ khóa (mục tiêu 1–2%)</li>';
+    $seo_guidance .= '<li>☐ Đảm bảo bài có tốc độ tải tốt (Core Web Vitals)</li>';
+    $seo_guidance .= '</ul>';
 
     $content .= $seo_guidance;
 
+    // Collect FAQ data for response
+    $faq_items = array();
+    if ($faq_1_q) $faq_items[] = array('q' => $faq_1_q, 'a' => $faq_1_a);
+    if ($faq_2_q) $faq_items[] = array('q' => $faq_2_q, 'a' => $faq_2_a);
+    if ($faq_3_q) $faq_items[] = array('q' => $faq_3_q, 'a' => $faq_3_a);
+
     $response_data = array(
-        'success' => true,
-        'data' => $content,
-        'meta_title' => $meta_title,
+        'success'          => true,
+        'data'             => $content,
+        'meta_title'       => $meta_title,
         'meta_description' => $meta_description,
-        'synonym_keyword' => $synonym_keyword,
-        'secondary_keyword' => $secondary_keyword
+        'og_title'         => $og_title,
+        'synonym_keyword'  => $synonym_keyword,
+        'secondary_keyword'=> $secondary_keyword,
+        'schema_type'      => $schema_type,
+        'reading_time'     => $reading_time,
+        'keyword_density'  => $keyword_density,
+        'keyword_count'    => $kw_occurrences,
+        'word_count'       => $word_count_body,
+        'faq_items'        => $faq_items,
+        'internal_links'   => array_filter(array($internal_link_1, $internal_link_2, $internal_link_3)),
     );
 
     // Cache the response
@@ -415,10 +553,14 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
     $user_id = get_current_user_id();
     if ($user_id) {
         aiseo_save_to_history($user_id, $prompt, $keywords, $api, $content, array(
-            'meta_title' => $meta_title,
-            'meta_description' => $meta_description,
-            'synonym_keyword' => $synonym_keyword,
-            'secondary_keyword' => $secondary_keyword
+            'meta_title'        => $meta_title,
+            'meta_description'  => $meta_description,
+            'synonym_keyword'   => $synonym_keyword,
+            'secondary_keyword' => $secondary_keyword,
+            'og_title'          => $og_title,
+            'schema_type'       => $schema_type,
+            'reading_time'      => $reading_time,
+            'keyword_density'   => $keyword_density,
         ));
     }
 

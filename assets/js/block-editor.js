@@ -200,28 +200,50 @@
                         // Insert blocks
                         if (blocks.length > 0) {
                             insertBlocks(blocks);
-                            
+
                             // Auto-fill post title if enabled, empty and meta_title is available
                             if (response.meta_title && autoFillTitle && (!currentPostTitle || currentPostTitle.trim() === '')) {
                                 editPost({ title: response.meta_title });
                                 console.log('AI SEO Content Generator: Auto-filled post title:', response.meta_title);
                             }
-                            
+
                             setOpen(false);
-                            
-                            // Show success message
-                            const successMessage = __('Content generated successfully!', 'ai-seo-content-generator');
-                            let notificationMessage = successMessage;
-                            
+
+                            // Build enriched success notification
+                            let notificationMessage = __('✅ Content generated successfully!', 'ai-seo-content-generator') + '\n\n';
+
                             if (response.meta_title && autoFillTitle && (!currentPostTitle || currentPostTitle.trim() === '')) {
-                                notificationMessage += ' ' + __('Post title has been automatically set.', 'ai-seo-content-generator');
+                                notificationMessage += '📝 ' + __('Post title auto-filled from SEO Title.', 'ai-seo-content-generator') + '\n';
                             }
-                            
-                            if (response.meta_title && response.meta_description) {
-                                const seoMessage = __('SEO guidance has been added at the end of the article. Please follow it to optimize your post.', 'ai-seo-content-generator');
-                                notificationMessage += ' ' + seoMessage;
+
+                            if (response.word_count) {
+                                notificationMessage += '📊 ' + response.word_count + ' ' + __('words', 'ai-seo-content-generator');
+                                if (response.reading_time) notificationMessage += ' · ⏱ ' + response.reading_time;
+                                notificationMessage += '\n';
                             }
-                            
+
+                            if (typeof response.keyword_density !== 'undefined') {
+                                notificationMessage += '🔑 ' + __('Keyword density', 'ai-seo-content-generator') + ': ' + response.keyword_density + '%';
+                                if (response.keyword_density >= 0.5 && response.keyword_density <= 2.0) {
+                                    notificationMessage += ' ✅';
+                                } else if (response.keyword_density > 2.0) {
+                                    notificationMessage += ' ⚠️ ' + __('(too high)', 'ai-seo-content-generator');
+                                } else {
+                                    notificationMessage += ' ⚠️ ' + __('(too low)', 'ai-seo-content-generator');
+                                }
+                                notificationMessage += '\n';
+                            }
+
+                            if (response.schema_type) {
+                                notificationMessage += '🏷 Schema: ' + response.schema_type + '\n';
+                            }
+
+                            if (response.faq_items && response.faq_items.length > 0) {
+                                notificationMessage += '❓ ' + response.faq_items.length + ' ' + __('FAQ items generated for schema.', 'ai-seo-content-generator') + '\n';
+                            }
+
+                            notificationMessage += '\n📋 ' + __('Full SEO guidance appended at the end of the article.', 'ai-seo-content-generator');
+
                             alert(notificationMessage);
                         } else {
                             alert(__('Error: No valid content blocks generated.', 'ai-seo-content-generator'));
@@ -238,7 +260,9 @@
                     let errorMessage = error.message || __('An unknown error occurred', 'ai-seo-content-generator');
                     
                     // Handle specific error codes from REST API response
-                    if (error.code === 'quota_exceeded' || error.code === 'all_quota_exceeded') {
+                    if (error.code === 'rate_limited') {
+                        errorMessage = __('Please wait a few seconds before sending another request.', 'ai-seo-content-generator');
+                    } else if (error.code === 'quota_exceeded' || error.code === 'all_quota_exceeded') {
                         errorMessage = __('API quota exceeded. All available APIs have reached their rate limits. Please wait a few minutes before trying again, or upgrade your API plans.', 'ai-seo-content-generator');
                     } else if (error.code === 'not_authenticated' || error.code === 'rest_not_authenticated') {
                         errorMessage = __('You must be logged in to WordPress to use this feature. Please log in and try again.', 'ai-seo-content-generator');
