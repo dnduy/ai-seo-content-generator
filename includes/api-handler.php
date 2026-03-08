@@ -4,21 +4,26 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
+function aiseo_call_gemini_api($prompt, $model = 'gemini-3.1-pro') {
     $api_key = aiseo_get_api_key('aiseo_gemini_api_key');
     if (empty($api_key)) {
         error_log('AISEO: Gemini API key is not configured.');
         return new WP_Error('no_api_key', 'Gemini API key is not configured.');
     }
 
-    // Map model names to Google Gemini API model IDs (Dec 2025)
+    // Map model names to Google Gemini API model IDs (March 2026)
+    // Gemini 1.5 is RETIRED. Gemini 2.0 is being retired June 2026.
+    // Latest: gemini-3.1-pro-preview (Feb 2026), gemini-3-flash-preview (Dec 2025),
+    //         gemini-3.1-flash-lite-preview (Mar 2026)
     $model_map = array(
-        'gemini-studio' => 'gemini-3-flash', // Licensed Studio key can target latest flash
-        'gemini-3-flash' => 'gemini-3-flash',
-        'gemini-2.0' => 'gemini-2.0-flash',
-        'gemini-1.5' => 'gemini-1.5-flash'
+        'gemini-studio'         => 'gemini-3.1-pro-preview',   // Latest Pro via Studio key
+        'gemini-3.1-pro'        => 'gemini-3.1-pro-preview',   // Latest Pro (Feb 2026)
+        'gemini-3-flash'        => 'gemini-3-flash-preview',   // Gemini 3 Flash (Dec 2025)
+        'gemini-3.1-flash-lite' => 'gemini-3.1-flash-lite-preview', // Fastest/cheapest (Mar 2026)
+        'gemini-2.0'            => 'gemini-2.0-flash',         // Stable (retiring Jun 2026)
+        'gemini-1.5'            => 'gemini-2.0-flash',         // 1.5 retired → redirect to 2.0
     );
-    $gemini_model = isset($model_map[$model]) ? $model_map[$model] : 'gemini-3-flash';
+    $gemini_model = isset($model_map[$model]) ? $model_map[$model] : 'gemini-3.1-pro-preview';
     $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $gemini_model . ':generateContent';
 
     $body = array(
@@ -31,7 +36,7 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
         ),
         'generationConfig' => array(
             'temperature' => 0.7,
-            'maxOutputTokens' => 4096
+            'maxOutputTokens' => 8192
         )
     );
 
@@ -281,18 +286,22 @@ function aiseo_call_claude_api($prompt, $model = 'claude-opus-4-6') {
 function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-3-flash') {
     $apis = array();
     
-    // Set API priority based on preference
+    // Set API priority based on preference (March 2026 model lineup)
     if (in_array($preferred_api, array('claude-opus', 'claude-sonnet', 'claude-haiku'), true)) {
-        $apis = array($preferred_api, 'gemini-studio', 'gemini-3-flash', 'deepseek');
+        $apis = array($preferred_api, 'gemini-3.1-pro', 'gemini-3-flash', 'deepseek');
     } elseif ($preferred_api === 'deepseek') {
-        $apis = array('deepseek', 'claude-opus', 'gemini-studio', 'gemini-3-flash', 'gemini-2.0');
+        $apis = array('deepseek', 'claude-opus', 'gemini-3.1-pro', 'gemini-3-flash');
     } elseif ($preferred_api === 'gemini-2.0') {
-        $apis = array('gemini-2.0', 'gemini-studio', 'gemini-3-flash', 'claude-opus', 'deepseek');
-    } elseif ($preferred_api === 'gemini-studio' || $preferred_api === 'gemini-3-flash') {
-        $apis = array('gemini-studio', 'gemini-3-flash', 'gemini-2.0', 'claude-opus', 'deepseek');
+        $apis = array('gemini-2.0', 'gemini-3-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek');
+    } elseif ($preferred_api === 'gemini-studio' || $preferred_api === 'gemini-3.1-pro') {
+        $apis = array('gemini-studio', 'gemini-3.1-pro', 'gemini-3-flash', 'claude-opus', 'deepseek');
+    } elseif ($preferred_api === 'gemini-3-flash') {
+        $apis = array('gemini-3-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek');
+    } elseif ($preferred_api === 'gemini-3.1-flash-lite') {
+        $apis = array('gemini-3.1-flash-lite', 'gemini-3-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek');
     } else {
-        // Default: Gemini Studio/3 Flash as primary, Claude as secondary fallback
-        $apis = array('gemini-studio', 'gemini-3-flash', 'claude-opus', 'gemini-2.0', 'deepseek');
+        // Default: Claude Opus as primary, then Gemini 3.1 Pro as fallback
+        $apis = array('claude-opus', 'gemini-3.1-pro', 'gemini-3-flash', 'deepseek');
     }
     
     $last_error = null;
@@ -332,7 +341,7 @@ function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-
     if (!empty($quota_errors)) {
         $quota_message = 'All available APIs have reached their rate limits. ';
         $quota_message .= 'Please wait a few minutes before trying again. ';
-        $quota_message .= 'Consider upgrading your API plans at https://ai.google.dev/ or https://openrouter.ai/';
+        $quota_message .= 'Consider upgrading your API plans at https://console.anthropic.com/, https://ai.google.dev/, or https://openrouter.ai/';
         error_log('AISEO: All APIs failed with quota exceeded');
         return new WP_Error('all_quota_exceeded', $quota_message);
     }

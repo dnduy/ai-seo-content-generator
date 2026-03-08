@@ -353,12 +353,12 @@
                                 options: [
                                     { label: 'Claude Opus 4.6 (Most Powerful)', value: 'claude-opus' },
                                     { label: 'Claude Sonnet 4.6 (Balanced)', value: 'claude-sonnet' },
-                                    { label: 'Claude Haiku 4.5 (Fastest)', value: 'claude-haiku' },
-                                    { label: 'Google Gemini (Studio Licensed)', value: 'gemini-studio' },
-                                    { label: 'Google Gemini (3 Flash)', value: 'gemini-3-flash' },
-                                    { label: 'Google Gemini (2.0 Flash)', value: 'gemini-2.0' },
-                                    { label: 'Google Gemini (1.5 Flash)', value: 'gemini-1.5' },
-                                    { label: 'DeepSeek (V3)', value: 'deepseek' }
+                                    { label: 'Claude Haiku 4.5 (Fast & Cheap)', value: 'claude-haiku' },
+                                    { label: 'Gemini 3.1 Pro Preview (Google Latest)', value: 'gemini-3.1-pro' },
+                                    { label: 'Gemini 3 Flash Preview (Google Fast)', value: 'gemini-3-flash' },
+                                    { label: 'Gemini 3.1 Flash Lite (Google Cheapest)', value: 'gemini-3.1-flash-lite' },
+                                    { label: 'Gemini 2.0 Flash (Google Stable)', value: 'gemini-2.0' },
+                                    { label: 'DeepSeek R1 (via OpenRouter)', value: 'deepseek' }
                                 ],
                                 onChange: setApi
                             }

@@ -267,7 +267,7 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
     $length = isset($params['length']) ? absint($params['length']) : 500;
     $tone = isset($params['tone']) ? sanitize_text_field($params['tone']) : 'neutral';
     $language = isset($params['language']) ? sanitize_text_field($params['language']) : 'vi';
-    $api = isset($params['api']) ? sanitize_text_field($params['api']) : 'gemini-1.5';
+    $api = isset($params['api']) ? sanitize_text_field($params['api']) : 'claude-opus';
 
     if (empty($prompt) || empty($keywords)) {
         error_log('AISEO: Missing prompt or keywords');
