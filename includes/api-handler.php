@@ -40,7 +40,7 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3.1-pro') {
         )
     );
 
-    error_log('AISEO: Sending Gemini API request with prompt: ' . $prompt . ' and model: ' . $model);
+    error_log('AISEO: Sending Gemini API request, model: ' . $model . ', prompt length: ' . strlen($prompt));
 
     $response = wp_remote_post($api_url . '?key=' . $api_key, array(
         'method' => 'POST',
@@ -117,7 +117,7 @@ function aiseo_call_deepseek_api($prompt) {
         'max_tokens' => 4096
     );
 
-    error_log('AISEO: Sending DeepSeek API request with prompt: ' . $prompt);
+    error_log('AISEO: Sending DeepSeek API request, prompt length: ' . strlen($prompt));
 
     $max_retries = 2;
     $attempt = 0;
@@ -210,14 +210,18 @@ function aiseo_call_claude_api($prompt, $model = 'claude-opus-4-6') {
 
     $body = array(
         'model'      => $claude_model,
-        'max_tokens' => 4096,
-        'thinking'   => array('type' => 'adaptive'),
+        'max_tokens' => 8192,
         'messages'   => array(
             array('role' => 'user', 'content' => $prompt)
         ),
     );
 
-    error_log('AISEO: Sending Claude API request with model: ' . $claude_model);
+    // Enable extended thinking for Opus/Sonnet (not supported on Haiku)
+    if (in_array($claude_model, array('claude-opus-4-6', 'claude-sonnet-4-6'), true)) {
+        $body['thinking'] = array('type' => 'enabled', 'budget_tokens' => 5000);
+    }
+
+    error_log('AISEO: Sending Claude API request, model: ' . $claude_model . ', prompt length: ' . strlen($prompt));
 
     $response = wp_remote_post('https://api.anthropic.com/v1/messages', array(
         'method'  => 'POST',
@@ -283,7 +287,7 @@ function aiseo_call_claude_api($prompt, $model = 'claude-opus-4-6') {
 }
 
 // Multi-API fallback function
-function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-3-flash') {
+function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'claude-opus') {
     $apis = array();
     
     // Set API priority based on preference (March 2026 model lineup)

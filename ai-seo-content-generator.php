@@ -18,13 +18,10 @@ if (!defined('ABSPATH')) {
 define('AISEO_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AISEO_PLUGIN_URL', plugin_dir_url(__FILE__));
 
-// Get encryption key safely
+// Get encryption key safely — always returns a proper 32-byte (256-bit) key
 function aiseo_get_encryption_key() {
-    if (function_exists('wp_salt')) {
-        return wp_salt('aiseo_encryption');
-    }
-    // Fallback key if wp_salt is not available yet
-    return 'aiseo_fallback_key_' . ABSPATH;
+    $raw = function_exists('wp_salt') ? wp_salt('aiseo_encryption') : ('aiseo_fallback_key_' . ABSPATH);
+    return hash('sha256', $raw, true); // Binary 32-byte key for AES-256
 }
 
 // Encryption/Decryption functions for API keys
@@ -262,12 +259,31 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
 
     $params = $request->get_params();
 
-    $prompt = isset($params['prompt']) ? sanitize_text_field($params['prompt']) : '';
+    $prompt = isset($params['prompt']) ? sanitize_textarea_field($params['prompt']) : '';
     $keywords = isset($params['keywords']) ? sanitize_text_field($params['keywords']) : '';
+
+    // Cap length: 100–5000 words to prevent excessive API costs
     $length = isset($params['length']) ? absint($params['length']) : 500;
-    $tone = isset($params['tone']) ? sanitize_text_field($params['tone']) : 'neutral';
-    $language = isset($params['language']) ? sanitize_text_field($params['language']) : 'vi';
-    $api = isset($params['api']) ? sanitize_text_field($params['api']) : 'claude-opus';
+    $length = max(100, min(5000, $length));
+
+    // Whitelist tone to prevent prompt injection via this field
+    $allowed_tones = array('neutral', 'informative', 'storytelling', 'professional', 'friendly', 'humorous');
+    $tone = isset($params['tone']) && in_array($params['tone'], $allowed_tones, true)
+        ? $params['tone'] : 'neutral';
+
+    // Whitelist language
+    $allowed_languages = array('vi', 'en', 'ko');
+    $language = isset($params['language']) && in_array($params['language'], $allowed_languages, true)
+        ? $params['language'] : 'vi';
+
+    // Whitelist API model to prevent unexpected fallback paths
+    $allowed_apis = array(
+        'claude-opus', 'claude-sonnet', 'claude-haiku',
+        'gemini-3.1-pro', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.0', 'gemini-studio',
+        'deepseek'
+    );
+    $api = isset($params['api']) && in_array($params['api'], $allowed_apis, true)
+        ? $params['api'] : 'claude-opus';
 
     if (empty($prompt) || empty($keywords)) {
         error_log('AISEO: Missing prompt or keywords');
@@ -276,6 +292,20 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
             400
         );
     }
+
+    // Server-side rate limiting: 1 request per 15 seconds per user
+    $rate_limit_key = 'aiseo_rate_limit_' . get_current_user_id();
+    if (get_transient($rate_limit_key)) {
+        return new WP_REST_Response(
+            array(
+                'success' => false,
+                'code' => 'rate_limited',
+                'message' => __('Please wait before sending another request.', 'ai-seo-content-generator')
+            ),
+            429
+        );
+    }
+    set_transient($rate_limit_key, 1, 15); // 15-second cooldown
 
     // Check cache first
     $cache_key = aiseo_get_cache_key($prompt, $keywords, $length, $tone, $language, $api);
@@ -323,36 +353,39 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
                 'code' => $error_code,
                 'message' => $error_message
             ),
-            $error_code === 'quota_exceeded' ? 429 : 500
+            in_array($error_code, array('quota_exceeded', 'all_quota_exceeded'), true) ? 429 : 500
         );
     }
 
-    // Extract meta title, description, synonym, and secondary keyword
+    // Extract meta title, description, synonym, and secondary keyword.
+    // Remove matched metadata lines from the response instead of relying on a fragile index,
+    // so the content is everything that was NOT a metadata line.
     $meta_title = '';
     $meta_description = '';
     $synonym_keyword = '';
     $secondary_keyword = '';
-    $content_lines = explode("\n", $response);
-    $content_start_index = 0;
-
-    foreach ($content_lines as $index => $line) {
-        $line = trim($line);
-        if (strpos($line, 'SEO Title:') === 0) {
-            $meta_title = trim(substr($line, strlen('SEO Title:')));
-            $content_start_index = $index + 1;
-        } elseif (strpos($line, 'Meta Description:') === 0) {
-            $meta_description = trim(substr($line, strlen('Meta Description:')));
-            $content_start_index = $index + 1;
-        } elseif (strpos($line, 'Synonym Keyword:') === 0) {
-            $synonym_keyword = trim(substr($line, strlen('Synonym Keyword:')));
-            $content_start_index = $index + 1;
-        } elseif (strpos($line, 'Secondary Keyword:') === 0) {
-            $secondary_keyword = trim(substr($line, strlen('Secondary Keyword:')));
-            $content_start_index = $index + 1;
+    $meta_prefixes = array(
+        'SEO Title:'         => &$meta_title,
+        'Meta Description:'  => &$meta_description,
+        'Synonym Keyword:'   => &$synonym_keyword,
+        'Secondary Keyword:' => &$secondary_keyword,
+    );
+    $content_lines = array();
+    foreach (explode("\n", $response) as $line) {
+        $matched = false;
+        foreach ($meta_prefixes as $prefix => &$target) {
+            if (strncmp(trim($line), $prefix, strlen($prefix)) === 0) {
+                $target = trim(substr(trim($line), strlen($prefix)));
+                $matched = true;
+                break;
+            }
+        }
+        unset($target);
+        if (!$matched) {
+            $content_lines[] = $line;
         }
     }
-
-    $content = implode("\n", array_slice($content_lines, $content_start_index));
+    $content = implode("\n", $content_lines);
 
     // Add SEO guidance at the end of content
     $seo_guidance = "<h3>Hướng dẫn SEO</h3>";
@@ -508,7 +541,7 @@ function aiseo_history_page() {
     ?>
     <div class="wrap">
         <h1>AI SEO Content History</h1>
-        <p>Your generated content history. Total: <?php echo $total; ?> items</p>
+        <p>Your generated content history. Total: <?php echo esc_html( (int) $total ); ?> items</p>
         
         <?php if (empty($history)): ?>
             <p>No content history found. Start generating content to see your history here!</p>
@@ -527,16 +560,16 @@ function aiseo_history_page() {
                 <tbody>
                     <?php foreach ($history as $item): ?>
                         <tr>
-                            <td><?php echo date('M j, Y H:i', strtotime($item->created_at)); ?></td>
+                            <td><?php echo esc_html( date('M j, Y H:i', strtotime($item->created_at)) ); ?></td>
                             <td><strong><?php echo esc_html($item->keywords); ?></strong></td>
                             <td><span class="badge"><?php echo esc_html($item->api_used); ?></span></td>
-                            <td><?php echo number_format($item->word_count); ?> words</td>
+                            <td><?php echo esc_html( number_format( (int) $item->word_count ) ); ?> words</td>
                             <td><?php echo esc_html($item->meta_title); ?></td>
                             <td>
-                                <button type="button" class="button button-small" onclick="toggleContent(<?php echo $item->id; ?>)">View Content</button>
+                                <button type="button" class="button button-small" onclick="toggleContent(<?php echo intval($item->id); ?>)">View Content</button>
                             </td>
                         </tr>
-                        <tr id="content-<?php echo $item->id; ?>" style="display: none;">
+                        <tr id="content-<?php echo intval($item->id); ?>" style="display: none;">
                             <td colspan="6">
                                 <div style="background: #f9f9f9; padding: 15px; margin: 10px 0;">
                                     <h4>Prompt:</h4>
