@@ -428,9 +428,11 @@ function aiseo_settings_page() {
         
         $gemini_key = isset($_POST['aiseo_gemini_api_key']) ? sanitize_text_field($_POST['aiseo_gemini_api_key']) : '';
         $deepseek_key = isset($_POST['aiseo_deepseek_api_key']) ? sanitize_text_field($_POST['aiseo_deepseek_api_key']) : '';
-        
+        $claude_key = isset($_POST['aiseo_claude_api_key']) ? sanitize_text_field($_POST['aiseo_claude_api_key']) : '';
+
         aiseo_save_api_key('aiseo_gemini_api_key', $gemini_key);
         aiseo_save_api_key('aiseo_deepseek_api_key', $deepseek_key);
+        aiseo_save_api_key('aiseo_claude_api_key', $claude_key);
         
         echo '<div class="notice notice-success"><p>Settings saved successfully!</p></div>';
     }
@@ -464,6 +466,13 @@ function aiseo_settings_page() {
                     <td>
                         <input type="password" name="aiseo_deepseek_api_key" id="aiseo_deepseek_api_key" value="<?php echo esc_attr(aiseo_get_api_key('aiseo_deepseek_api_key')); ?>" class="regular-text" />
                         <p class="description">Get your API key from <a href="https://openrouter.ai/" target="_blank">OpenRouter</a>. <em>(Encrypted in database)</em></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="aiseo_claude_api_key">Claude (Anthropic) API Key</label></th>
+                    <td>
+                        <input type="password" name="aiseo_claude_api_key" id="aiseo_claude_api_key" value="<?php echo esc_attr(aiseo_get_api_key('aiseo_claude_api_key')); ?>" class="regular-text" />
+                        <p class="description">Get your API key from <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>. Supports Claude Opus 4.6, Sonnet 4.6, and Haiku 4.5. <em>(Encrypted in database)</em></p>
                     </td>
                 </tr>
             </table>
@@ -597,6 +606,7 @@ function aiseo_history_page() {
 function aiseo_register_options() {
     register_setting('aiseo_settings_group', 'aiseo_gemini_api_key', 'sanitize_text_field');
     register_setting('aiseo_settings_group', 'aiseo_deepseek_api_key', 'sanitize_text_field');
+    register_setting('aiseo_settings_group', 'aiseo_claude_api_key', 'sanitize_text_field');
 }
 add_action('admin_init', 'aiseo_register_options');
 

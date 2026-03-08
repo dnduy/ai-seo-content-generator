@@ -42,7 +42,7 @@
             const [length, setLength] = useState('500');
             const [tone, setTone] = useState('neutral');
             const [language, setLanguage] = useState('vi');
-            const [api, setApi] = useState('gemini-1.5');
+            const [api, setApi] = useState('claude-opus');
             const [isLoading, setLoading] = useState(false);
             const [autoFillTitle, setAutoFillTitle] = useState(true);
 
@@ -247,7 +247,7 @@
                     } else if (error.code === 'invalid_nonce' || error.message?.includes('Nonce') || error.message?.includes('verification')) {
                         errorMessage = __('Session expired. Please refresh the page and try again.', 'ai-seo-content-generator');
                     } else if (error.code === 'no_api_key') {
-                        errorMessage = __('API keys are not configured. Please contact your site administrator to set up the AI SEO Content Generator.', 'ai-seo-content-generator');
+                        errorMessage = __('API key is not configured for the selected model. Please go to Settings → AI SEO Content to add your API key (Claude, Gemini, or DeepSeek).', 'ai-seo-content-generator');
                     } else if (error.message?.includes('cookie') || error.message?.includes('authentication')) {
                         errorMessage = __('Authentication failed. Please ensure you are logged in to WordPress.', 'ai-seo-content-generator');
                     }
@@ -351,6 +351,9 @@
                                 help: __('Select the AI model to generate content.', 'ai-seo-content-generator'),
                                 value: api,
                                 options: [
+                                    { label: 'Claude Opus 4.6 (Most Powerful)', value: 'claude-opus' },
+                                    { label: 'Claude Sonnet 4.6 (Balanced)', value: 'claude-sonnet' },
+                                    { label: 'Claude Haiku 4.5 (Fastest)', value: 'claude-haiku' },
                                     { label: 'Google Gemini (Studio Licensed)', value: 'gemini-studio' },
                                     { label: 'Google Gemini (3 Flash)', value: 'gemini-3-flash' },
                                     { label: 'Google Gemini (2.0 Flash)', value: 'gemini-2.0' },
