@@ -190,23 +190,23 @@ function aiseo_call_deepseek_api($prompt) {
     return new WP_Error('max_retries', 'Failed to get content from DeepSeek API after retries.');
 }
 
-function aiseo_call_claude_api($prompt, $model = 'claude-opus-4-6') {
+function aiseo_call_claude_api($prompt, $model = 'claude-opus-4-8') {
     $api_key = aiseo_get_api_key('aiseo_claude_api_key');
     if (empty($api_key)) {
         error_log('AISEO: Claude API key is not configured.');
         return new WP_Error('no_api_key', 'Claude API key is not configured.');
     }
 
-    // Map model names to Anthropic model IDs
+    // Map model names to Anthropic model IDs (July 2026)
     $model_map = array(
-        'claude-opus'   => 'claude-opus-4-6',
-        'claude-sonnet' => 'claude-sonnet-4-6',
+        'claude-opus'   => 'claude-opus-4-8',
+        'claude-sonnet' => 'claude-sonnet-5',
         'claude-haiku'  => 'claude-haiku-4-5',
-        'claude-opus-4-6'   => 'claude-opus-4-6',
-        'claude-sonnet-4-6' => 'claude-sonnet-4-6',
+        'claude-opus-4-8'   => 'claude-opus-4-8',
+        'claude-sonnet-5'   => 'claude-sonnet-5',
         'claude-haiku-4-5'  => 'claude-haiku-4-5',
     );
-    $claude_model = isset($model_map[$model]) ? $model_map[$model] : 'claude-opus-4-6';
+    $claude_model = isset($model_map[$model]) ? $model_map[$model] : 'claude-opus-4-8';
 
     $body = array(
         'model'      => $claude_model,
@@ -216,9 +216,10 @@ function aiseo_call_claude_api($prompt, $model = 'claude-opus-4-6') {
         ),
     );
 
-    // Enable extended thinking for Opus/Sonnet (not supported on Haiku)
-    if (in_array($claude_model, array('claude-opus-4-6', 'claude-sonnet-4-6'), true)) {
-        $body['thinking'] = array('type' => 'enabled', 'budget_tokens' => 5000);
+    // Enable adaptive thinking for Opus 4.8 and Sonnet 5
+    // budget_tokens is rejected (HTTP 400) on these models — must use {type: "adaptive"}
+    if (in_array($claude_model, array('claude-opus-4-8', 'claude-sonnet-5'), true)) {
+        $body['thinking'] = array('type' => 'adaptive');
     }
 
     error_log('AISEO: Sending Claude API request, model: ' . $claude_model . ', prompt length: ' . strlen($prompt));

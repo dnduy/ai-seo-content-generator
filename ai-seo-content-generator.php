@@ -647,7 +647,7 @@ function aiseo_settings_page() {
                     <th><label for="aiseo_claude_api_key">Claude (Anthropic) API Key</label></th>
                     <td>
                         <input type="password" name="aiseo_claude_api_key" id="aiseo_claude_api_key" value="<?php echo esc_attr(aiseo_get_api_key('aiseo_claude_api_key')); ?>" class="regular-text" />
-                        <p class="description">Get your API key from <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>. Supports Claude Opus 4.6, Sonnet 4.6, and Haiku 4.5. <em>(Encrypted in database)</em></p>
+                        <p class="description">Get your API key from <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>. Supports Claude Opus 4.8, Sonnet 5, and Haiku 4.5. <em>(Encrypted in database)</em></p>
                     </td>
                 </tr>
             </table>
