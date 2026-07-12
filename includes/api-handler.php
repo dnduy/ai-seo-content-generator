@@ -4,21 +4,26 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
+function aiseo_call_gemini_api($prompt, $model = 'gemini-3.5-flash') {
     $api_key = aiseo_get_api_key('aiseo_gemini_api_key');
     if (empty($api_key)) {
         error_log('AISEO: Gemini API key is not configured.');
         return new WP_Error('no_api_key', 'Gemini API key is not configured.');
     }
 
-    // Map model names to Google Gemini API model IDs (Dec 2025)
+    // Map model names to Google Gemini API model IDs (July 2026)
+    // Gemini 1.5 RETIRED. Gemini 2.0 RETIRED Jun 2026. Gemini 2.5 depreciates Oct 2026.
+    // Latest: gemini-3.5-flash (Jul 2026), gemini-3.1-pro-preview (Feb 2026)
     $model_map = array(
-        'gemini-studio' => 'gemini-3-flash', // Licensed Studio key can target latest flash
-        'gemini-3-flash' => 'gemini-3-flash',
-        'gemini-2.0' => 'gemini-2.0-flash',
-        'gemini-1.5' => 'gemini-1.5-flash'
+        'gemini-studio'         => 'gemini-3.1-pro-preview',   // Pro via Studio key
+        'gemini-3.5-flash'      => 'gemini-3.5-flash',         // Latest (Jul 2026)
+        'gemini-3.1-pro'        => 'gemini-3.1-pro-preview',   // Pro Preview (Feb 2026)
+        'gemini-3-flash'        => 'gemini-3-flash-preview',   // Flash Preview (Dec 2025)
+        'gemini-3.1-flash-lite' => 'gemini-3.1-flash-lite-preview', // Fastest/cheapest (Mar 2026)
+        'gemini-2.0'            => 'gemini-3.5-flash',         // 2.0 retired → redirect to 3.5
+        'gemini-1.5'            => 'gemini-3.5-flash',         // 1.5 retired → redirect to 3.5
     );
-    $gemini_model = isset($model_map[$model]) ? $model_map[$model] : 'gemini-3-flash';
+    $gemini_model = isset($model_map[$model]) ? $model_map[$model] : 'gemini-3.5-flash';
     $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $gemini_model . ':generateContent';
 
     $body = array(
@@ -31,11 +36,11 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
         ),
         'generationConfig' => array(
             'temperature' => 0.7,
-            'maxOutputTokens' => 4096
+            'maxOutputTokens' => 8192
         )
     );
 
-    error_log('AISEO: Sending Gemini API request with prompt: ' . $prompt . ' and model: ' . $model);
+    error_log('AISEO: Sending Gemini API request, model: ' . $model . ', prompt length: ' . strlen($prompt));
 
     $response = wp_remote_post($api_url . '?key=' . $api_key, array(
         'method' => 'POST',
@@ -92,7 +97,7 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3-flash') {
     return $content;
 }
 
-function aiseo_call_deepseek_api($prompt) {
+function aiseo_call_deepseek_api($prompt, $model = 'deepseek-v4-pro') {
     $api_key = aiseo_get_api_key('aiseo_deepseek_api_key');
     if (empty($api_key)) {
         error_log('AISEO: DeepSeek API key is not configured.');
@@ -101,10 +106,18 @@ function aiseo_call_deepseek_api($prompt) {
 
     $api_url = 'https://openrouter.ai/api/v1/chat/completions';
 
-    // Use DeepSeek R1 model via OpenRouter (latest version as of Dec 2025)
-    // Note: DeepSeek R1 includes advanced reasoning capabilities
+    // Map model names to OpenRouter DeepSeek model IDs (July 2026)
+    // Legacy deepseek-r1 alias deprecates July 24, 2026
+    $model_map = array(
+        'deepseek'          => 'deepseek/deepseek-v4-pro',   // default → V4 Pro
+        'deepseek-v4-pro'   => 'deepseek/deepseek-v4-pro',   // V4 Pro (1.6T params, 49B active)
+        'deepseek-v4-flash' => 'deepseek/deepseek-v4-flash', // V4 Flash (fast & cheap)
+        'deepseek-r1'       => 'deepseek/deepseek-r1',       // R1 Reasoning model
+    );
+    $deepseek_model = isset($model_map[$model]) ? $model_map[$model] : 'deepseek/deepseek-v4-pro';
+
     $body = array(
-        'model' => 'deepseek/deepseek-r1',
+        'model' => $deepseek_model,
         'messages' => array(
             array('role' => 'user', 'content' => $prompt)
         ),
@@ -112,7 +125,7 @@ function aiseo_call_deepseek_api($prompt) {
         'max_tokens' => 4096
     );
 
-    error_log('AISEO: Sending DeepSeek API request with prompt: ' . $prompt);
+    error_log('AISEO: Sending DeepSeek API request, model: ' . $deepseek_model . ', prompt length: ' . strlen($prompt));
 
     $max_retries = 2;
     $attempt = 0;
@@ -185,31 +198,142 @@ function aiseo_call_deepseek_api($prompt) {
     return new WP_Error('max_retries', 'Failed to get content from DeepSeek API after retries.');
 }
 
-// Multi-API fallback function
-function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-3-flash') {
-    $apis = array();
-    
-    // Set API priority based on preference (Gemini Studio/3 > Gemini 2.0 > DeepSeek R1)
-    if ($preferred_api === 'deepseek') {
-        $apis = array('deepseek', 'gemini-studio', 'gemini-3-flash', 'gemini-2.0');
-    } elseif ($preferred_api === 'gemini-2.0') {
-        $apis = array('gemini-2.0', 'gemini-studio', 'gemini-3-flash', 'deepseek');
-    } elseif ($preferred_api === 'gemini-studio' || $preferred_api === 'gemini-3-flash') {
-        $apis = array('gemini-studio', 'gemini-3-flash', 'gemini-2.0', 'deepseek');
-    } else {
-        // Default: Gemini Studio/3 Flash as primary (latest, fastest, most cost-effective as of Dec 2025)
-        $apis = array('gemini-studio', 'gemini-3-flash', 'gemini-2.0', 'deepseek');
+function aiseo_call_claude_api($prompt, $model = 'claude-opus') {
+    $api_key = aiseo_get_api_key('aiseo_claude_api_key');
+    if (empty($api_key)) {
+        error_log('AISEO: Claude API key is not configured.');
+        return new WP_Error('no_api_key', 'Claude API key is not configured.');
     }
-    
+
+    // Map model names to Anthropic model IDs (July 2026)
+    $model_map = array(
+        'claude-opus'       => 'claude-opus-4-8',
+        'claude-sonnet'     => 'claude-sonnet-5',
+        'claude-haiku'      => 'claude-haiku-4-5',
+        'claude-opus-4-8'   => 'claude-opus-4-8',
+        'claude-sonnet-5'   => 'claude-sonnet-5',
+        'claude-haiku-4-5'  => 'claude-haiku-4-5',
+        // backward compat
+        'claude-opus-4-6'   => 'claude-opus-4-8',
+        'claude-sonnet-4-6' => 'claude-sonnet-5',
+    );
+    $claude_model = isset($model_map[$model]) ? $model_map[$model] : 'claude-opus-4-8';
+
+    $body = array(
+        'model'      => $claude_model,
+        'max_tokens' => 8192,
+        'messages'   => array(
+            array('role' => 'user', 'content' => $prompt)
+        ),
+    );
+
+    // Enable extended thinking for Opus/Sonnet (not supported on Haiku)
+    if (in_array($claude_model, array('claude-opus-4-8', 'claude-sonnet-5'), true)) {
+        $body['thinking'] = array('type' => 'enabled', 'budget_tokens' => 5000);
+    }
+
+    error_log('AISEO: Sending Claude API request, model: ' . $claude_model . ', prompt length: ' . strlen($prompt));
+
+    $response = wp_remote_post('https://api.anthropic.com/v1/messages', array(
+        'method'  => 'POST',
+        'headers' => array(
+            'x-api-key'         => $api_key,
+            'anthropic-version' => '2023-06-01',
+            'content-type'      => 'application/json',
+        ),
+        'body'    => json_encode($body),
+        'timeout' => 90,
+    ));
+
+    if (is_wp_error($response)) {
+        error_log('AISEO: Claude API request failed: ' . $response->get_error_message());
+        return $response;
+    }
+
+    $response_code = wp_remote_retrieve_response_code($response);
+    $response_body = wp_remote_retrieve_body($response);
+
+    error_log('AISEO: Claude API response code: ' . $response_code);
+    error_log('AISEO: Claude API response body: ' . substr($response_body, 0, 500));
+
+    if ($response_code === 429 || $response_code === 529) {
+        error_log('AISEO: Claude API rate/overload error (HTTP ' . $response_code . ')');
+        return new WP_Error('quota_exceeded', 'Claude API rate limit exceeded. Please wait a few minutes before trying again.', array('status' => 429));
+    }
+
+    $data = json_decode($response_body, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log('AISEO: Invalid JSON response from Claude API: ' . json_last_error_msg());
+        return new WP_Error('json_error', 'Invalid JSON response from Claude API');
+    }
+
+    if (isset($data['error'])) {
+        $error_message = $data['error']['message'] ?? 'Unknown Claude API error';
+        $error_type    = $data['error']['type'] ?? null;
+        error_log('AISEO: Claude API error (' . $error_type . '): ' . $error_message);
+
+        if ($error_type === 'rate_limit_error' || $error_type === 'overloaded_error') {
+            return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again.', array('status' => 429));
+        }
+        return new WP_Error('api_error', $error_message);
+    }
+
+    // Extract text from content blocks (skip thinking blocks)
+    $content = '';
+    if (!empty($data['content']) && is_array($data['content'])) {
+        foreach ($data['content'] as $block) {
+            if (isset($block['type']) && $block['type'] === 'text') {
+                $content .= $block['text'];
+            }
+        }
+    }
+
+    if (empty($content)) {
+        error_log('AISEO: No text content returned from Claude API. Full response: ' . print_r($data, true));
+        return new WP_Error('api_error', 'No content returned from Claude API');
+    }
+
+    return $content;
+}
+
+// Multi-API fallback function
+function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'claude-opus') {
+    $apis = array();
+
+    $deepseek_apis = array('deepseek', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-r1');
+    $claude_apis   = array('claude-opus', 'claude-sonnet', 'claude-haiku');
+
+    // Set API priority based on preference (July 2026 model lineup)
+    if (in_array($preferred_api, $claude_apis, true)) {
+        $apis = array($preferred_api, 'gemini-3.5-flash', 'gemini-3.1-pro', 'deepseek-v4-pro');
+    } elseif (in_array($preferred_api, $deepseek_apis, true)) {
+        $apis = array($preferred_api, 'claude-opus', 'gemini-3.5-flash', 'gemini-3.1-pro');
+    } elseif ($preferred_api === 'gemini-3.5-flash') {
+        $apis = array('gemini-3.5-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek-v4-pro');
+    } elseif ($preferred_api === 'gemini-studio' || $preferred_api === 'gemini-3.1-pro') {
+        $apis = array('gemini-studio', 'gemini-3.1-pro', 'gemini-3.5-flash', 'claude-opus', 'deepseek-v4-pro');
+    } elseif ($preferred_api === 'gemini-3-flash') {
+        $apis = array('gemini-3-flash', 'gemini-3.5-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek-v4-pro');
+    } elseif ($preferred_api === 'gemini-3.1-flash-lite') {
+        $apis = array('gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek-v4-pro');
+    } else {
+        $apis = array('claude-opus', 'gemini-3.5-flash', 'gemini-3.1-pro', 'deepseek-v4-pro');
+    }
+
     $last_error = null;
     $quota_errors = array(); // Track quota errors separately
-    
+
     foreach ($apis as $api) {
         error_log('AISEO: Trying API: ' . $api);
-        
-        $result = ($api === 'deepseek') ?
-            aiseo_call_deepseek_api($prompt) :
-            aiseo_call_gemini_api($prompt, $api);
+
+        if (in_array($api, array('deepseek', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-r1'), true)) {
+            $result = aiseo_call_deepseek_api($prompt, $api);
+        } elseif (in_array($api, array('claude-opus', 'claude-sonnet', 'claude-haiku'), true)) {
+            $result = aiseo_call_claude_api($prompt, $api);
+        } else {
+            $result = aiseo_call_gemini_api($prompt, $api);
+        }
         
         if (!is_wp_error($result)) {
             error_log('AISEO: Success with API: ' . $api);
@@ -234,7 +358,7 @@ function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'gemini-
     if (!empty($quota_errors)) {
         $quota_message = 'All available APIs have reached their rate limits. ';
         $quota_message .= 'Please wait a few minutes before trying again. ';
-        $quota_message .= 'Consider upgrading your API plans at https://ai.google.dev/ or https://openrouter.ai/';
+        $quota_message .= 'Consider upgrading your API plans at https://console.anthropic.com/, https://ai.google.dev/, or https://openrouter.ai/';
         error_log('AISEO: All APIs failed with quota exceeded');
         return new WP_Error('all_quota_exceeded', $quota_message);
     }
