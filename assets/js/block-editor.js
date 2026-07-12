@@ -375,14 +375,19 @@
                                 help: __('Select the AI model to generate content.', 'ai-seo-content-generator'),
                                 value: api,
                                 options: [
-                                    { label: 'Claude Opus 4.6 (Most Powerful)', value: 'claude-opus' },
-                                    { label: 'Claude Sonnet 4.6 (Balanced)', value: 'claude-sonnet' },
+                                    { label: '--- Claude (Anthropic) ---', value: 'claude-opus', disabled: true },
+                                    { label: 'Claude Opus 4.8 (Most Powerful)', value: 'claude-opus' },
+                                    { label: 'Claude Sonnet 5 (Balanced)', value: 'claude-sonnet' },
                                     { label: 'Claude Haiku 4.5 (Fast & Cheap)', value: 'claude-haiku' },
-                                    { label: 'Gemini 3.1 Pro Preview (Google Latest)', value: 'gemini-3.1-pro' },
+                                    { label: '--- Google Gemini ---', value: 'gemini-3.5-flash', disabled: true },
+                                    { label: 'Gemini 3.5 Flash (Google Latest)', value: 'gemini-3.5-flash' },
+                                    { label: 'Gemini 3.1 Pro Preview (Google Pro)', value: 'gemini-3.1-pro' },
                                     { label: 'Gemini 3 Flash Preview (Google Fast)', value: 'gemini-3-flash' },
                                     { label: 'Gemini 3.1 Flash Lite (Google Cheapest)', value: 'gemini-3.1-flash-lite' },
-                                    { label: 'Gemini 2.0 Flash (Google Stable)', value: 'gemini-2.0' },
-                                    { label: 'DeepSeek R1 (via OpenRouter)', value: 'deepseek' }
+                                    { label: '--- DeepSeek (via OpenRouter) ---', value: 'deepseek-v4-pro', disabled: true },
+                                    { label: 'DeepSeek V4 Pro (Most Capable)', value: 'deepseek-v4-pro' },
+                                    { label: 'DeepSeek V4 Flash (Fast & Cheap)', value: 'deepseek-v4-flash' },
+                                    { label: 'DeepSeek R1 (Reasoning)', value: 'deepseek-r1' }
                                 ],
                                 onChange: setApi
                             }
