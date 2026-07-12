@@ -104,17 +104,16 @@ function aiseo_call_deepseek_api($prompt, $model = 'deepseek-v4-pro') {
         return new WP_Error('no_api_key', 'DeepSeek API key is not configured.');
     }
 
-    // DeepSeek direct API (no OpenRouter needed) — get key at https://platform.deepseek.com/
-    $api_url = 'https://api.deepseek.com/v1/chat/completions';
+    // DeepSeek via OpenRouter — get key at https://openrouter.ai/
+    $api_url = 'https://openrouter.ai/api/v1/chat/completions';
 
-    // Map model names to DeepSeek direct API model IDs (July 2026)
+    // Map model names to OpenRouter DeepSeek model IDs (July 2026)
     $model_map = array(
-        'deepseek'          => 'deepseek-chat',      // default → latest chat model (V3/V4)
-        'deepseek-v4-pro'   => 'deepseek-chat',      // V4 Pro maps to deepseek-chat
-        'deepseek-v4-flash' => 'deepseek-chat',      // V4 Flash maps to deepseek-chat
-        'deepseek-r1'       => 'deepseek-reasoner',  // R1 Reasoning model
+        'deepseek'          => 'deepseek/deepseek-chat',      // default → latest chat (V3/V4)
+        'deepseek-v4-pro'   => 'deepseek/deepseek-chat',      // latest chat model
+        'deepseek-r1'       => 'deepseek/deepseek-r1',        // R1 Reasoning model
     );
-    $deepseek_model = isset($model_map[$model]) ? $model_map[$model] : 'deepseek-chat';
+    $deepseek_model = isset($model_map[$model]) ? $model_map[$model] : 'deepseek/deepseek-chat';
 
     $body = array(
         'model' => $deepseek_model,
@@ -163,7 +162,7 @@ function aiseo_call_deepseek_api($prompt, $model = 'deepseek-v4-pro') {
         if ($response_code === 429 || $response_code === 503) {
             $error_message = 'Rate limit exceeded. DeepSeek API quota exhausted.';
             error_log('AISEO: DeepSeek API quota exceeded (HTTP ' . $response_code . ')');
-            return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again or check your DeepSeek plan at https://platform.deepseek.com/', array('status' => 429));
+            return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again or check your OpenRouter credits at https://openrouter.ai/settings/credits', array('status' => 429));
         }
 
         $data = json_decode($response_body, true);

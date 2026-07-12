@@ -384,8 +384,8 @@
                                     { label: 'Gemini 3.1 Pro Preview (Google Pro)', value: 'gemini-3.1-pro' },
                                     { label: 'Gemini 3 Flash Preview (Google Fast)', value: 'gemini-3-flash' },
                                     { label: 'Gemini 3.1 Flash Lite (Google Cheapest)', value: 'gemini-3.1-flash-lite' },
-                                    { label: '--- DeepSeek (Direct API) ---', value: 'deepseek-v4-pro', disabled: true },
-                                    { label: 'DeepSeek Chat (Latest V3/V4)', value: 'deepseek-v4-pro' },
+                                    { label: '--- DeepSeek (via OpenRouter) ---', value: 'deepseek-v4-pro', disabled: true },
+                                    { label: 'DeepSeek Chat V3/V4 (Latest)', value: 'deepseek-v4-pro' },
                                     { label: 'DeepSeek R1 (Reasoning)', value: 'deepseek-r1' }
                                 ],
                                 onChange: setApi
