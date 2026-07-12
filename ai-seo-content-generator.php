@@ -640,7 +640,7 @@ function aiseo_settings_page() {
                     <th><label for="aiseo_deepseek_api_key">DeepSeek API Key</label></th>
                     <td>
                         <input type="password" name="aiseo_deepseek_api_key" id="aiseo_deepseek_api_key" value="<?php echo esc_attr(aiseo_get_api_key('aiseo_deepseek_api_key')); ?>" class="regular-text" />
-                        <p class="description">Get your API key from <a href="https://openrouter.ai/" target="_blank">OpenRouter</a>. <em>(Encrypted in database)</em></p>
+                        <p class="description">Get your API key from <a href="https://platform.deepseek.com/" target="_blank">DeepSeek Platform</a>. Supports DeepSeek Chat (V3/V4) and DeepSeek R1 (Reasoning). <em>(Encrypted in database)</em></p>
                     </td>
                 </tr>
                 <tr>
