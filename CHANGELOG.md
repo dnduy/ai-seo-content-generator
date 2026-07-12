@@ -2,6 +2,14 @@
 
 All notable changes to AI SEO Content Generator plugin will be documented in this file.
 
+## [3.3.0] - 2026-07-12
+
+### Upgraded
+- **Claude Opus 4.8**: Nâng cấp từ claude-opus-4-6 lên claude-opus-4-8 (mô hình mạnh nhất của Anthropic)
+- **Claude Sonnet 5**: Nâng cấp từ claude-sonnet-4-6 lên claude-sonnet-5
+- **Extended Thinking**: Chuyển sang `{type: "adaptive"}` — `budget_tokens` bị từ chối (HTTP 400) trên Opus 4.8 và Sonnet 5
+- **Author**: Cập nhật thông tin tác giả thành webgool.com
+
 ## [3.0.0] - 2025-10-03
 
 ### 🎉 Major Release - Complete Overhaul

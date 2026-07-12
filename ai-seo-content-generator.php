@@ -2,8 +2,9 @@
 /*
 Plugin Name: AI SEO Content Generator
 Description: A WordPress plugin to generate SEO-optimized content using Google Gemini or DeepSeek API in WordPress 6.8 Gutenberg editor, with SEO guidance, caching, and content history.
-Version: 3.2
-Author: Your Name
+Version: 3.3
+Author: webgool.com
+Author URI: https://webgool.com
 License: GPL2
 Text Domain: ai-seo-content-generator
 Domain Path: /languages
