@@ -4,26 +4,26 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function aiseo_call_gemini_api($prompt, $model = 'gemini-3.5-flash') {
+function aiseo_call_gemini_api($prompt, $model = 'gemini-3.1-pro') {
     $api_key = aiseo_get_api_key('aiseo_gemini_api_key');
     if (empty($api_key)) {
         error_log('AISEO: Gemini API key is not configured.');
         return new WP_Error('no_api_key', 'Gemini API key is not configured.');
     }
 
-    // Map model names to Google Gemini API model IDs (July 2026)
-    // Gemini 1.5 RETIRED. Gemini 2.0 RETIRED Jun 2026. Gemini 2.5 depreciates Oct 2026.
-    // Latest: gemini-3.5-flash (Jul 2026), gemini-3.1-pro-preview (Feb 2026)
+    // Map model names to Google Gemini API model IDs (March 2026)
+    // Gemini 1.5 is RETIRED. Gemini 2.0 is being retired June 2026.
+    // Latest: gemini-3.1-pro-preview (Feb 2026), gemini-3-flash-preview (Dec 2025),
+    //         gemini-3.1-flash-lite-preview (Mar 2026)
     $model_map = array(
-        'gemini-studio'         => 'gemini-3.1-pro-preview',   // Pro via Studio key
-        'gemini-3.5-flash'      => 'gemini-3.5-flash',         // Latest (Jul 2026)
-        'gemini-3.1-pro'        => 'gemini-3.1-pro-preview',   // Pro Preview (Feb 2026)
-        'gemini-3-flash'        => 'gemini-3-flash-preview',   // Flash Preview (Dec 2025)
+        'gemini-studio'         => 'gemini-3.1-pro-preview',   // Latest Pro via Studio key
+        'gemini-3.1-pro'        => 'gemini-3.1-pro-preview',   // Latest Pro (Feb 2026)
+        'gemini-3-flash'        => 'gemini-3-flash-preview',   // Gemini 3 Flash (Dec 2025)
         'gemini-3.1-flash-lite' => 'gemini-3.1-flash-lite-preview', // Fastest/cheapest (Mar 2026)
-        'gemini-2.0'            => 'gemini-3.5-flash',         // 2.0 retired → redirect to 3.5
-        'gemini-1.5'            => 'gemini-3.5-flash',         // 1.5 retired → redirect to 3.5
+        'gemini-2.0'            => 'gemini-2.0-flash',         // Stable (retiring Jun 2026)
+        'gemini-1.5'            => 'gemini-2.0-flash',         // 1.5 retired → redirect to 2.0
     );
-    $gemini_model = isset($model_map[$model]) ? $model_map[$model] : 'gemini-3.5-flash';
+    $gemini_model = isset($model_map[$model]) ? $model_map[$model] : 'gemini-3.1-pro-preview';
     $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $gemini_model . ':generateContent';
 
     $body = array(
@@ -97,26 +97,19 @@ function aiseo_call_gemini_api($prompt, $model = 'gemini-3.5-flash') {
     return $content;
 }
 
-function aiseo_call_deepseek_api($prompt, $model = 'deepseek-v4-pro') {
+function aiseo_call_deepseek_api($prompt) {
     $api_key = aiseo_get_api_key('aiseo_deepseek_api_key');
     if (empty($api_key)) {
         error_log('AISEO: DeepSeek API key is not configured.');
         return new WP_Error('no_api_key', 'DeepSeek API key is not configured.');
     }
 
-    // DeepSeek via OpenRouter — get key at https://openrouter.ai/
     $api_url = 'https://openrouter.ai/api/v1/chat/completions';
 
-    // Map model names to OpenRouter DeepSeek model IDs (July 2026)
-    $model_map = array(
-        'deepseek'          => 'deepseek/deepseek-chat',      // default → latest chat (V3/V4)
-        'deepseek-v4-pro'   => 'deepseek/deepseek-chat',      // latest chat model
-        'deepseek-r1'       => 'deepseek/deepseek-r1',        // R1 Reasoning model
-    );
-    $deepseek_model = isset($model_map[$model]) ? $model_map[$model] : 'deepseek/deepseek-chat';
-
+    // Use DeepSeek R1 model via OpenRouter (latest version as of Dec 2025)
+    // Note: DeepSeek R1 includes advanced reasoning capabilities
     $body = array(
-        'model' => $deepseek_model,
+        'model' => 'deepseek/deepseek-r1',
         'messages' => array(
             array('role' => 'user', 'content' => $prompt)
         ),
@@ -124,7 +117,7 @@ function aiseo_call_deepseek_api($prompt, $model = 'deepseek-v4-pro') {
         'max_tokens' => 4096
     );
 
-    error_log('AISEO: Sending DeepSeek API request, model: ' . $deepseek_model . ', prompt length: ' . strlen($prompt));
+    error_log('AISEO: Sending DeepSeek API request, prompt length: ' . strlen($prompt));
 
     $max_retries = 2;
     $attempt = 0;
@@ -162,7 +155,7 @@ function aiseo_call_deepseek_api($prompt, $model = 'deepseek-v4-pro') {
         if ($response_code === 429 || $response_code === 503) {
             $error_message = 'Rate limit exceeded. DeepSeek API quota exhausted.';
             error_log('AISEO: DeepSeek API quota exceeded (HTTP ' . $response_code . ')');
-            return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again or check your OpenRouter credits at https://openrouter.ai/settings/credits', array('status' => 429));
+            return new WP_Error('quota_exceeded', $error_message . ' Please wait a few minutes before trying again or check your OpenRouter plan at https://openrouter.ai/', array('status' => 429));
         }
 
         $data = json_decode($response_body, true);
@@ -197,26 +190,23 @@ function aiseo_call_deepseek_api($prompt, $model = 'deepseek-v4-pro') {
     return new WP_Error('max_retries', 'Failed to get content from DeepSeek API after retries.');
 }
 
-function aiseo_call_claude_api($prompt, $model = 'claude-opus') {
+function aiseo_call_claude_api($prompt, $model = 'claude-opus-4-6') {
     $api_key = aiseo_get_api_key('aiseo_claude_api_key');
     if (empty($api_key)) {
         error_log('AISEO: Claude API key is not configured.');
         return new WP_Error('no_api_key', 'Claude API key is not configured.');
     }
 
-    // Map model names to Anthropic model IDs (July 2026)
+    // Map model names to Anthropic model IDs
     $model_map = array(
-        'claude-opus'       => 'claude-opus-4-8',
-        'claude-sonnet'     => 'claude-sonnet-5',
-        'claude-haiku'      => 'claude-haiku-4-5',
-        'claude-opus-4-8'   => 'claude-opus-4-8',
-        'claude-sonnet-5'   => 'claude-sonnet-5',
+        'claude-opus'   => 'claude-opus-4-6',
+        'claude-sonnet' => 'claude-sonnet-4-6',
+        'claude-haiku'  => 'claude-haiku-4-5',
+        'claude-opus-4-6'   => 'claude-opus-4-6',
+        'claude-sonnet-4-6' => 'claude-sonnet-4-6',
         'claude-haiku-4-5'  => 'claude-haiku-4-5',
-        // backward compat
-        'claude-opus-4-6'   => 'claude-opus-4-8',
-        'claude-sonnet-4-6' => 'claude-sonnet-5',
     );
-    $claude_model = isset($model_map[$model]) ? $model_map[$model] : 'claude-opus-4-8';
+    $claude_model = isset($model_map[$model]) ? $model_map[$model] : 'claude-opus-4-6';
 
     $body = array(
         'model'      => $claude_model,
@@ -227,7 +217,7 @@ function aiseo_call_claude_api($prompt, $model = 'claude-opus') {
     );
 
     // Enable extended thinking for Opus/Sonnet (not supported on Haiku)
-    if (in_array($claude_model, array('claude-opus-4-8', 'claude-sonnet-5'), true)) {
+    if (in_array($claude_model, array('claude-opus-4-6', 'claude-sonnet-4-6'), true)) {
         $body['thinking'] = array('type' => 'enabled', 'budget_tokens' => 5000);
     }
 
@@ -299,35 +289,33 @@ function aiseo_call_claude_api($prompt, $model = 'claude-opus') {
 // Multi-API fallback function
 function aiseo_generate_content_with_fallback($prompt, $preferred_api = 'claude-opus') {
     $apis = array();
-
-    $deepseek_apis = array('deepseek', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-r1');
-    $claude_apis   = array('claude-opus', 'claude-sonnet', 'claude-haiku');
-
-    // Set API priority based on preference (July 2026 model lineup)
-    if (in_array($preferred_api, $claude_apis, true)) {
-        $apis = array($preferred_api, 'gemini-3.5-flash', 'gemini-3.1-pro', 'deepseek-v4-pro');
-    } elseif (in_array($preferred_api, $deepseek_apis, true)) {
-        $apis = array($preferred_api, 'claude-opus', 'gemini-3.5-flash', 'gemini-3.1-pro');
-    } elseif ($preferred_api === 'gemini-3.5-flash') {
-        $apis = array('gemini-3.5-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek-v4-pro');
+    
+    // Set API priority based on preference (March 2026 model lineup)
+    if (in_array($preferred_api, array('claude-opus', 'claude-sonnet', 'claude-haiku'), true)) {
+        $apis = array($preferred_api, 'gemini-3.1-pro', 'gemini-3-flash', 'deepseek');
+    } elseif ($preferred_api === 'deepseek') {
+        $apis = array('deepseek', 'claude-opus', 'gemini-3.1-pro', 'gemini-3-flash');
+    } elseif ($preferred_api === 'gemini-2.0') {
+        $apis = array('gemini-2.0', 'gemini-3-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek');
     } elseif ($preferred_api === 'gemini-studio' || $preferred_api === 'gemini-3.1-pro') {
-        $apis = array('gemini-studio', 'gemini-3.1-pro', 'gemini-3.5-flash', 'claude-opus', 'deepseek-v4-pro');
+        $apis = array('gemini-studio', 'gemini-3.1-pro', 'gemini-3-flash', 'claude-opus', 'deepseek');
     } elseif ($preferred_api === 'gemini-3-flash') {
-        $apis = array('gemini-3-flash', 'gemini-3.5-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek-v4-pro');
+        $apis = array('gemini-3-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek');
     } elseif ($preferred_api === 'gemini-3.1-flash-lite') {
-        $apis = array('gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek-v4-pro');
+        $apis = array('gemini-3.1-flash-lite', 'gemini-3-flash', 'gemini-3.1-pro', 'claude-opus', 'deepseek');
     } else {
-        $apis = array('claude-opus', 'gemini-3.5-flash', 'gemini-3.1-pro', 'deepseek-v4-pro');
+        // Default: Claude Opus as primary, then Gemini 3.1 Pro as fallback
+        $apis = array('claude-opus', 'gemini-3.1-pro', 'gemini-3-flash', 'deepseek');
     }
-
+    
     $last_error = null;
     $quota_errors = array(); // Track quota errors separately
-
+    
     foreach ($apis as $api) {
         error_log('AISEO: Trying API: ' . $api);
-
-        if (in_array($api, array('deepseek', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-r1'), true)) {
-            $result = aiseo_call_deepseek_api($prompt, $api);
+        
+        if ($api === 'deepseek') {
+            $result = aiseo_call_deepseek_api($prompt);
         } elseif (in_array($api, array('claude-opus', 'claude-sonnet', 'claude-haiku'), true)) {
             $result = aiseo_call_claude_api($prompt, $api);
         } else {
