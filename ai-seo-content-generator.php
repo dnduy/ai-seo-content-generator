@@ -2,8 +2,9 @@
 /*
 Plugin Name: AI SEO Content Generator
 Description: A WordPress plugin to generate SEO-optimized content using Google Gemini or DeepSeek API in WordPress 6.8 Gutenberg editor, with SEO guidance, caching, and content history.
-Version: 3.2
-Author: Your Name
+Version: 3.3
+Author: webgool.com
+Author URI: https://webgool.com
 License: GPL2
 Text Domain: ai-seo-content-generator
 Domain Path: /languages
@@ -279,8 +280,8 @@ function aiseo_handle_ai_request(WP_REST_Request $request) {
     // Whitelist API model to prevent unexpected fallback paths
     $allowed_apis = array(
         'claude-opus', 'claude-sonnet', 'claude-haiku',
-        'gemini-3.5-flash', 'gemini-3.1-pro', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-studio',
-        'deepseek', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-r1'
+        'gemini-3.1-pro', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.0', 'gemini-studio',
+        'deepseek'
     );
     $api = isset($params['api']) && in_array($params['api'], $allowed_apis, true)
         ? $params['api'] : 'claude-opus';
@@ -640,7 +641,7 @@ function aiseo_settings_page() {
                     <th><label for="aiseo_deepseek_api_key">DeepSeek API Key</label></th>
                     <td>
                         <input type="password" name="aiseo_deepseek_api_key" id="aiseo_deepseek_api_key" value="<?php echo esc_attr(aiseo_get_api_key('aiseo_deepseek_api_key')); ?>" class="regular-text" />
-                        <p class="description">Get your API key from <a href="https://platform.deepseek.com/" target="_blank">DeepSeek Platform</a>. Supports DeepSeek Chat (V3/V4) and DeepSeek R1 (Reasoning). <em>(Encrypted in database)</em></p>
+                        <p class="description">Get your API key from <a href="https://openrouter.ai/" target="_blank">OpenRouter</a>. <em>(Encrypted in database)</em></p>
                     </td>
                 </tr>
                 <tr>
